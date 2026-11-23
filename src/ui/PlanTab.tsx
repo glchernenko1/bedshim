@@ -25,7 +25,6 @@ import { bedMeshSnippet, idealProbeCount, probeAdvice, probeEstimate } from '../
 import { useT } from '../i18n'
 import { useAppStore } from '../state/store'
 import { LayerLegend, PlanGridCanvas } from './PlanGridCanvas'
-import { CalibrationCard } from './CalibrationCard'
 import { ResidualMapCanvas } from './ResidualMapCanvas'
 
 type Verdict = 'coarse' | 'good' | 'fine' | 'slow'
@@ -408,8 +407,6 @@ export function PlanTab() {
               </Space>
             </Card>
           )}
-
-          <CalibrationCard />
 
           <Card title={t('probe.title')}>
             <Space orientation="vertical" size={10} style={{ width: '100%' }}>

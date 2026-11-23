@@ -51,6 +51,8 @@ export interface AppState {
   removeMeasurement: (id: string) => void
   applyPlan: (plan: AppliedPlan) => void
   clearMeasurements: () => void
+  /** Recovery: attach a known layer state to a measurement (e.g. a forgotten apply). */
+  setMeasurementLayers: (id: string, layers: number[][]) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -109,6 +111,11 @@ export const useAppStore = create<AppState>()(
         })),
 
       clearMeasurements: () => set({ measurements: [], selectedId: null, pending: null }),
+
+      setMeasurementLayers: (id, layers) =>
+        set((state) => ({
+          measurements: state.measurements.map((item) => (item.id === id ? { ...item, layers } : item)),
+        })),
     }),
     {
       name: 'bedshim.settings',

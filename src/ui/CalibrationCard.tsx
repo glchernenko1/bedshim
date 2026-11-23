@@ -1,15 +1,14 @@
 import { useState } from 'react'
-import { Alert, Button, Card, Col, Row, Space, Statistic, Typography } from 'antd'
+import { Alert, Button, Card, Col, Row, Select, Space, Statistic, Typography } from 'antd'
 import { fitMaterial, type FitResult } from '../core/calibrate'
 import { buildGrid } from '../core/grid'
 import { createSurface } from '../core/mesh/interpolate'
-import { useT } from '../i18n'
+import type { Measurement } from '../state/store'
 import { useAppStore } from '../state/store'
+import { useT } from '../i18n'
 
-function boundsMatch(
-  a: { minX: number; maxX: number; minY: number; maxY: number },
-  b: { minX: number; maxX: number; minY: number; maxY: number },
-): boolean {
+function boundsMatch(a: Measurement['mesh']['bounds'], b: Measurement['mesh']['bounds']): boolean {
+  if (!a || !b) return false
   return (
     Math.abs(a.minX - b.minX) < 1e-6 &&
     Math.abs(a.maxX - b.maxX) < 1e-6 &&
@@ -18,58 +17,73 @@ function boundsMatch(
   )
 }
 
+type Reason = 'same' | 'fromNoPlan' | 'toNoLayers' | 'geometry' | null
+
 /**
  * Fits t1/ts from two stored meshes and the layer states between them (SPEC §9.2).
- * The pair is always "the previous measurement → the selected one".
+ * The pair defaults to the last two measurements and can be changed explicitly,
+ * so marking a plan on the older mesh does not require re-selecting anything.
  */
 export function CalibrationCard() {
   const t = useT()
   const measurements = useAppStore((state) => state.measurements)
-  const selectedId = useAppStore((state) => state.selectedId)
   const material = useAppStore((state) => state.material)
   const setMaterial = useAppStore((state) => state.setMaterial)
+  const setMeasurementLayers = useAppStore((state) => state.setMeasurementLayers)
+  const [fromId, setFromId] = useState<string | null>(null)
+  const [toId, setToId] = useState<string | null>(null)
   const [fit, setFit] = useState<FitResult | null>(null)
 
-  if (measurements.length < 2) return null
-  const index = measurements.findIndex((item) => item.id === selectedId)
-  const current = index >= 0 ? measurements[index] : null
-  const previous = index > 0 ? measurements[index - 1] : null
+  if (measurements.length < 2) {
+    return (
+      <Card title={t('calib.title')}>
+        <Alert type="info" showIcon title={t('calib.reason.noPair.title')} description={t('calib.reason.noPair.body')} />
+      </Card>
+    )
+  }
 
-  // The first measurement is a bare bed by assumption: if no layer state was
-  // recorded, zeros are the state before the applied plan.
-  const previousLayers =
-    previous?.layers ??
-    (previous?.applied ? previous.applied.layers.map((row) => row.map(() => 0)) : null)
+  const defaultFrom = measurements[measurements.length - 2]!
+  const defaultTo = measurements[measurements.length - 1]!
+  const from = measurements.find((item) => item.id === fromId) ?? defaultFrom
+  const to = measurements.find((item) => item.id === toId) ?? defaultTo
 
-  const canFit = Boolean(
-    current &&
-      previous &&
-      previousLayers &&
-      current.layers &&
-      previous.applied &&
-      previous.mesh.bounds &&
-      current.mesh.bounds &&
-      previous.mesh.xCount === current.mesh.xCount &&
-      previous.mesh.yCount === current.mesh.yCount &&
-      boundsMatch(previous.mesh.bounds, current.mesh.bounds),
-  )
+  const fromLayers =
+    from.layers ?? (from.applied ? from.applied.layers.map((row) => row.map(() => 0)) : null)
+
+  const reason: Reason = (() => {
+    if (from.id === to.id) return 'same'
+    if (!from.applied || !fromLayers) return 'fromNoPlan'
+    if (!to.layers) return 'toNoLayers'
+    if (
+      from.mesh.xCount !== to.mesh.xCount ||
+      from.mesh.yCount !== to.mesh.yCount ||
+      !boundsMatch(from.mesh.bounds, to.mesh.bounds)
+    ) {
+      return 'geometry'
+    }
+    return null
+  })()
+
+  const options = [...measurements].reverse().map((item) => ({
+    value: item.id,
+    label: `${item.label} · ${new Date(item.createdAt).toLocaleDateString()}`,
+  }))
 
   const run = (): void => {
-    if (!current || !previous || !previousLayers || !current.layers || !previous.applied) return
-    if (!previous.mesh.bounds) return
+    if (reason !== null || !from.applied || !fromLayers || !to.layers || !from.mesh.bounds) return
     const grid = buildGrid({
-      plate: { w: previous.applied.plateW, h: previous.applied.plateH },
-      meshBounds: previous.mesh.bounds,
-      tapeWidth: previous.applied.tapeWidth,
-      meshXCount: previous.mesh.xCount,
-      meshYCount: previous.mesh.yCount,
+      plate: { w: from.applied.plateW, h: from.applied.plateH },
+      meshBounds: from.mesh.bounds,
+      tapeWidth: from.applied.tapeWidth,
+      meshXCount: from.mesh.xCount,
+      meshYCount: from.mesh.yCount,
     })
     setFit(
       fitMaterial({
-        oldSurface: createSurface(previous.mesh),
-        newSurface: createSurface(current.mesh),
-        oldLayers: previousLayers,
-        newLayers: current.layers,
+        oldSurface: createSurface(from.mesh),
+        newSurface: createSurface(to.mesh),
+        oldLayers: fromLayers,
+        newLayers: to.layers,
         grid,
         fixedT1: material.calibrated ? material.t1 : undefined,
       }),
@@ -82,21 +96,49 @@ export function CalibrationCard() {
     setMaterial({ ...material, t1: round(fit.t1), ts: round(fit.ts), calibrated: true })
   }
 
+  const params = { previous: from.label, current: to.label }
+
   return (
     <Card title={t('calib.title')}>
       <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-        {!canFit ? (
-          <Alert type="info" showIcon title={t('calib.needPair.title')} description={t('calib.needPair.body')} />
+        <Row gutter={[12, 8]}>
+          <Col xs={12} md={6}>
+            <Typography.Text type="secondary">{t('calib.from')}</Typography.Text>
+            <Select style={{ width: '100%' }} value={from.id} options={options} onChange={(value) => setFromId(value)} />
+          </Col>
+          <Col xs={12} md={6}>
+            <Typography.Text type="secondary">{t('calib.to')}</Typography.Text>
+            <Select style={{ width: '100%' }} value={to.id} options={options} onChange={(value) => setToId(value)} />
+          </Col>
+        </Row>
+
+        {reason ? (
+          <Alert
+            type="info"
+            showIcon
+            title={t(`calib.reason.${reason}.title`, params)}
+            description={
+              <Space orientation="vertical" size={8}>
+                <span>{t(`calib.reason.${reason}.body`, params)}</span>
+                {reason === 'toNoLayers' && from.applied && (
+                  <Button size="small" onClick={() => setMeasurementLayers(to.id, from.applied!.layers)}>
+                    {t('calib.reason.currentNoLayers.action', { previous: from.label })}
+                  </Button>
+                )}
+              </Space>
+            }
+          />
         ) : (
           <>
-            <Typography.Text type="secondary">
-              {t('calib.pair', { from: previous?.label ?? '', to: current?.label ?? '' })}
-            </Typography.Text>
             <Space size={8} wrap>
               <Button type="primary" onClick={run}>
                 {t('calib.run')}
               </Button>
-              {material.calibrated && <Typography.Text type="secondary">{t('calib.current', { t1: material.t1.toFixed(4), ts: material.ts.toFixed(4) })}</Typography.Text>}
+              {material.calibrated && (
+                <Typography.Text type="secondary">
+                  {t('calib.current', { t1: material.t1.toFixed(4), ts: material.ts.toFixed(4) })}
+                </Typography.Text>
+              )}
             </Space>
 
             {fit && (

@@ -265,7 +265,7 @@ export function MeshTab() {
                 >
                   <Typography.Text strong>{item.label}</Typography.Text>
                   <Tag>{t('mesh.grid.value', { x: item.mesh.xCount, y: item.mesh.yCount })}</Tag>
-                  {item.layers && <Tag color="blue">{t('mesh.history.hasLayers')}</Tag>}
+                  {item.applied && <Tag color="blue">{t('mesh.history.hasLayers')}</Tag>}
                   <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                     {new Date(item.createdAt).toLocaleString()}
                   </Typography.Text>

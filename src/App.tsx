@@ -6,6 +6,7 @@ import { useLang, useT, type Lang } from './i18n'
 import { useAppStore } from './state/store'
 import { MeshTab } from './ui/MeshTab'
 import { PlanTab } from './ui/PlanTab'
+import { CalibrationCard } from './ui/CalibrationCard'
 import { Placeholder } from './ui/Placeholder'
 
 export function App() {
@@ -50,6 +51,18 @@ export function App() {
               items={[
                 { key: 'mesh', label: t('app.tab.mesh'), children: <MeshTab /> },
                 { key: 'plan', label: t('app.tab.plan'), children: <PlanTab /> },
+                {
+                  key: 'calibration',
+                  label: t('app.tab.calibration'),
+                  children: (
+                    <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+                      <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
+                        {t('calib.loop')}
+                      </Typography.Paragraph>
+                      <CalibrationCard />
+                    </Space>
+                  ),
+                },
                 {
                   key: 'lattice',
                   label: t('app.tab.lattice'),

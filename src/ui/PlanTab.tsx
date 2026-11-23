@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   Alert,
+  Button,
   Card,
   Col,
   Divider,
@@ -24,6 +25,7 @@ import { bedMeshSnippet, idealProbeCount, probeAdvice, probeEstimate } from '../
 import { useT } from '../i18n'
 import { useAppStore } from '../state/store'
 import { LayerLegend, PlanGridCanvas } from './PlanGridCanvas'
+import { CalibrationCard } from './CalibrationCard'
 import { ResidualMapCanvas } from './ResidualMapCanvas'
 
 type Verdict = 'coarse' | 'good' | 'fine' | 'slow'
@@ -39,7 +41,12 @@ const fmt = (value: number, digits = 4): string => value.toFixed(digits)
 
 export function PlanTab() {
   const t = useT()
-  const mesh = useAppStore((state) => state.mesh)
+  const measurements = useAppStore((state) => state.measurements)
+  const selectedId = useAppStore((state) => state.selectedId)
+  const measurement = measurements.find((item) => item.id === selectedId) ?? null
+  const mesh = measurement?.mesh ?? null
+  const applyPlan = useAppStore((state) => state.applyPlan)
+  const pending = useAppStore((state) => state.pending)
   const material = useAppStore((state) => state.material)
   const setMaterial = useAppStore((state) => state.setMaterial)
 
@@ -64,6 +71,13 @@ export function PlanTab() {
     })
   }, [mesh, plateW, plateH, tapeWidth])
 
+  const baseLayers = useMemo(() => {
+    if (!grid) return undefined
+    const stored = measurement?.layers
+    if (stored && stored.length === grid.rows && (stored[0]?.length ?? 0) === grid.cols) return stored
+    return Array.from({ length: grid.rows }, () => new Array<number>(grid.cols).fill(0))
+  }, [grid, measurement])
+
   const result = useMemo(() => {
     if (!surface || !grid) return null
     return plan({
@@ -73,8 +87,9 @@ export function PlanTab() {
       referencePercentile: percentile,
       rounding,
       maxLayers,
+      baseLayers,
     })
-  }, [surface, grid, material, percentile, rounding, maxLayers])
+  }, [surface, grid, material, percentile, rounding, maxLayers, baseLayers])
 
   const prediction = useMemo(() => {
     if (!surface || !result) return null
@@ -231,6 +246,8 @@ export function PlanTab() {
                 {t('plan.material.layers')}
                 <br />
                 {t('plan.material.auto')}
+                <br />
+                {t('plan.material.tsBigger')}
               </Typography.Text>
             </Col>
           </Row>
@@ -293,6 +310,14 @@ export function PlanTab() {
                 <PlanGridCanvas plan={result} />
                 <LayerLegend maxUsed={result.stats.maxUsed} />
               </Space>
+
+              <Space size={8} wrap>
+                <Button type="primary" onClick={() => applyPlan({ layers: result.layers, tapeWidth, plateW, plateH })}>
+                  {t('plan.apply')}
+                </Button>
+                {pending && <Typography.Text type="secondary">{t('plan.applied.tag')}</Typography.Text>}
+              </Space>
+              {pending && <Alert type="success" showIcon title={t('plan.applied.title')} description={t('plan.applied.body')} />}
             </Space>
           </Card>
 
@@ -383,6 +408,8 @@ export function PlanTab() {
               </Space>
             </Card>
           )}
+
+          <CalibrationCard />
 
           <Card title={t('probe.title')}>
             <Space orientation="vertical" size={10} style={{ width: '100%' }}>

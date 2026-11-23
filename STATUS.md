@@ -15,7 +15,7 @@ draft of the spec.
 | P3 forward | done | σ-blur prediction, per-cell residual, `achievable`/`delivered`, predicted mesh export |
 | P4 strips | not started | pieces, batches, printable instructions |
 | P5 STL + SVG | not started | manifold lattice, 1:1 SVG |
-| P6 calibration | not started | tape wizard (t1/ts from two meshes), apply + monotonic diff |
+| P6 calibration | in progress | measurement history, apply-plan state, t1/ts fit from two maps; wizard state machine, JSON import/export and the peel UI still pending |
 
 ## What works today
 
@@ -38,6 +38,14 @@ draft of the spec.
   shows per-cell residual (µm map), worst/RMS residual, `delivered` (how much of
   the requested lift arrives) and `achievable` (cells inside the deadband), plus
   a paste-ready `[bed_mesh predicted]` block.
+- **Measurement history** — every parsed map is stored with its parse text,
+  grid and (after a plan is marked as glued) the absolute layer state of the
+  bed. Any measurement can be selected for analysis or planning; the first one
+  is assumed to be a bare bed.
+- **Calibration (P6, first half)** — with two measurements where a plan was
+  applied in between, `fitMaterial` solves t1/ts by least squares at the probe
+  nodes (mean-detrended, σ-blurred basis), reports R², noise and the layer-change
+  distribution, and writes the result into the material.
 - **Screen** — plate-sized layer map (hatched = unprobed), 2D/3D mesh view,
   material fields, EN/RU, works at 380 px, offline reload verified.
 
@@ -81,7 +89,20 @@ draft of the spec.
     way). Bridging fidelity is reported separately as `delivered`. A `floor` plan
     deliberately undershoots, so a low `achievable` there produces an
     "undershoot by design" notice, not "the plate cannot follow".
-12. **Frame is plate-sized**, cells cover the probed rectangle. Cells whose centre
+12. **Plans sit on the measured state.** The mesh already contains the lift of
+    whatever tape is on the bed, so `plan()` takes `baseLayers` (the state when
+    the mesh was taken) and keeps the absolute stack at or above it. The first
+    measurement is assumed bare; after "mark plan as glued" the next measurement
+    inherits that layer matrix.
+13. **Calibration fits at probe nodes**, not cell centres: the measured delta at
+    a node is a direct sample of the bridged tape field, so no cell-mean
+    resampling bias enters the fit. The mean is removed from both meshes; a
+    best-fit plane option is still future.
+14. **Unknown ts is reported, not hidden.** t1 = ts = 0.6 × nominal is only an
+    estimate; since ts is usually larger than t1, layer counts can be off. The
+    screen says so, keeps `floor` for the first iteration and expects the second
+    one to correct.
+15. **Frame is plate-sized**, cells cover the probed rectangle. Cells whose centre
     is outside the mesh are hatched and get no tape; extending the plan into the
     unprobed margin (owner's idea) is **not implemented yet** — it needs a
     decision on how far to extrapolate and whether to tape that margin.
@@ -91,14 +112,15 @@ draft of the spec.
 - Repeatability gate from §5.4 (two consecutive meshes) is not implemented yet.
 - P4: strips, batches, EN/RU instructions, printable sheet.
 - P5: manifold STL, 1:1 SVG.
-- P6: tape wizard and applying calibration.
-- Project save/load JSON (§10.3); the store persists only the mesh, language and
-  material for now.
+- P6: the uniform-patch wizard state machine (§9.3), the peel/add diff screen and
+  "apply calibration" replanning.
+- Project save/load JSON (§10.3); localStorage already keeps the measurements,
+  material and language, but there is no file import/export yet.
 
 ## Verification
 
 ```bash
-npm test           # 83 tests, node environment
+npm test           # 89 tests, node environment
 npm run typecheck  # tsc --noEmit
 npm run build      # dist/, offline reload verified in Chromium
 npm run cli -- parse fixtures/neptune4-mesh.cfg

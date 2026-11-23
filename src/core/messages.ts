@@ -40,6 +40,11 @@ export const MESSAGE_CODES = [
   'forward.warn.notAchievable',
   'forward.notice.bridging',
   'forward.notice.undershoot',
+  // calibration fit
+  'calibrate.error.noChanges',
+  'calibrate.notice.singleParameter',
+  'calibrate.warn.negative',
+  'calibrate.warn.inconclusive',
 ] as const
 
 export type MessageCode = (typeof MESSAGE_CODES)[number]

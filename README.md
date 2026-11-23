@@ -26,7 +26,8 @@ npm run cli -- parse fixtures/neptune4-mesh.cfg
 | P1 mesh | done — three mesh shapes, Klipper-exact bicubic surface, fixture golden tests |
 | Mesh view | done — 2D heatmap, rotatable 3D surface (canvas, no WebGL), min/Δ/median/mean/MAD |
 | P2 grid+plan | done — `buildGrid` 10×10, reference + quantization, golden plan, probe-count advice |
-| P3–P6 | not started |
+| P3 forward | done — σ-blur prediction, residual map, achievable/delivered, mesh export |
+| P4–P6 | in progress |
 
 Decisions, deviations from the first spec draft and the current numbers live in
 [`STATUS.md`](STATUS.md).

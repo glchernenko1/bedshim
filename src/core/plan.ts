@@ -86,6 +86,12 @@ export interface PlanOptions {
   meshSign?: MeshSign
   /** Subgrid per axis for the cell mean; SPEC §5.3 requires ≥ 8. Default 16. */
   cellSamples?: number
+  /**
+   * Absolute layers physically on the bed when the mesh was taken. The mesh
+   * already contains their lift, so the plan adds the remaining correction on
+   * top of this state instead of computing from zero.
+   */
+  baseLayers?: number[][]
 }
 
 /**
@@ -236,6 +242,7 @@ export function plan(options: PlanOptions): Plan {
     meshSign = 'high',
     cellSamples = 16,
     smoothTarget = false,
+    baseLayers,
   } = options
 
   const means: number[][] = Array.from({ length: grid.rows }, () => new Array<number>(grid.cols).fill(0))
@@ -284,8 +291,14 @@ export function plan(options: PlanOptions): Plan {
       const mean = means[row]![col]!
       const range = ranges[row]![col]!
       const needed = target[row]![col] ?? 0
-      const wanted = quantize(needed, material, { deadband, maxLayers, rounding })
-      const idealWanted = quantize(needed, material, { deadband, maxLayers: 64, rounding })
+      const base = Math.max(0, baseLayers?.[row]?.[col] ?? 0)
+      // The mesh measures the current state, so the absolute target is the
+      // existing lift plus what is still missing.
+      const absolute = lift(material, base) + needed
+      const wantedAbsolute = quantize(absolute, material, { deadband: 0, maxLayers, rounding })
+      // The deadband belongs to what is still missing, not to the absolute stack.
+      const wanted = needed < deadband ? base : wantedAbsolute
+      const idealWanted = quantize(absolute, material, { deadband: 0, maxLayers: 64, rounding })
       const layers = cell.unprobed ? 0 : wanted
       const width = cell.x1 - cell.x0
       const cellHeight = cell.y1 - cell.y0

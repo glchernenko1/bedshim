@@ -112,6 +112,16 @@ describe('plan — Appendix A golden', () => {
     expect(low.stats.totalLayers).not.toBe(high.stats.totalLayers)
   })
 
+  it('adds the remaining correction on top of the measured layer state', () => {
+    const base = Array.from({ length: 10 }, () => new Array<number>(10).fill(2))
+    const withBase = fixturePlan({ baseLayers: base })
+    // A plan computed on an already-taped bed is never below the existing stack.
+    for (const cell of withBase.cells) {
+      if (!cell.unprobed) expect(cell.layers).toBeGreaterThanOrEqual(2)
+    }
+    expect(withBase.stats.totalLayers).toBeGreaterThanOrEqual(200)
+  })
+
   it('is a pure function of its inputs', () => {
     expect(fixturePlan().layers).toEqual(fixturePlan().layers)
   })

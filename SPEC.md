@@ -394,8 +394,13 @@ plan(opts: {
   rounding?: 'floor' | 'round';     // default 'floor' when !calibrated, else 'round'
   maxLayers?: number;               // default 6
   cellSamples?: number;             // default 16 (≥ 8 per §5.3)
+  baseLayers?: number[][];          // absolute layers already on the bed
   meshSign?: 'high' | 'low';        // internal; the app always uses 'high'
 }): Plan;
+
+`baseLayers` is the physical state when the mesh was taken. The mesh already
+contains that lift, so the plan adds the remaining correction on top of it
+instead of computing from zero; a plan is never below the existing stack.
 ```
 
 ### 6.2 Reference level
@@ -527,6 +532,10 @@ and the user will re-tune Z anyway. Detrend before comparing (subtract the mean;
 optionally a best-fit plane, selectable).
 
 ### 9.2 Fit
+
+Implemented in `core/calibrate.ts` at the probe nodes (the measured delta there
+is a direct sample of the bridged tape field), detrended by the mean. Synthetic
+tests recover `t1`/`ts` within 2 % clean and 5 % with noise.
 
 Given iteration `i` with `layers_i` and a new mesh `m_{i+1}`:
 

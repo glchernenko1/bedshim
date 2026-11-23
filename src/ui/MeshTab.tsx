@@ -23,22 +23,27 @@ const format = (value: number): string => value.toFixed(4)
 
 export function MeshTab() {
   const t = useT()
-  const text = useAppStore((state) => state.meshText)
-  const setText = useAppStore((state) => state.setMeshText)
-  const parsed = useAppStore((state) => state.mesh)
-  const profiles = useAppStore((state) => state.profiles)
-  const setMesh = useAppStore((state) => state.setMesh)
+  const text = useAppStore((state) => state.draftText)
+  const setText = useAppStore((state) => state.setDraftText)
+  const measurements = useAppStore((state) => state.measurements)
+  const selectedId = useAppStore((state) => state.selectedId)
+  const addMeasurement = useAppStore((state) => state.addMeasurement)
+  const selectMeasurement = useAppStore((state) => state.selectMeasurement)
+  const removeMeasurement = useAppStore((state) => state.removeMeasurement)
   const [failure, setFailure] = useState<Failure | null>(null)
+
+  const selected = measurements.find((item) => item.id === selectedId) ?? null
+  const parsed = selected?.mesh ?? null
+  const profiles = selected?.profiles ?? []
 
   const runParse = (source: string) => {
     try {
       const result = parseMesh(source)
-      setMesh(result.mesh, result.profiles)
+      addMeasurement(result.mesh, source, result.profiles)
       setFailure(null)
     } catch (error) {
       if (error instanceof CoreError) {
         setFailure({ code: error.code, params: error.params, line: error.line })
-        setMesh(null)
         return
       }
       throw error
@@ -89,7 +94,6 @@ export function MeshTab() {
             <Button
               onClick={() => {
                 setText('')
-                setMesh(null)
                 setFailure(null)
               }}
             >
@@ -230,6 +234,45 @@ export function MeshTab() {
           </Space>
         </Card>
       )}
+
+      <Card title={t('mesh.history.title')}>
+        <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {t('mesh.history.hint')}
+          </Typography.Text>
+          {measurements.length === 0 ? (
+            <Typography.Text type="secondary">{t('mesh.history.empty')}</Typography.Text>
+          ) : (
+            <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+              {[...measurements].reverse().map((item) => (
+                <div
+                  key={item.id}
+                  style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}
+                >
+                  <Typography.Text strong>{item.label}</Typography.Text>
+                  <Tag>{t('mesh.grid.value', { x: item.mesh.xCount, y: item.mesh.yCount })}</Tag>
+                  {item.layers && <Tag color="blue">{t('mesh.history.hasLayers')}</Tag>}
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {new Date(item.createdAt).toLocaleString()}
+                  </Typography.Text>
+                  <Button
+                    size="small"
+                    type={item.id === selectedId ? 'primary' : 'default'}
+                    onClick={() => selectMeasurement(item.id)}
+                  >
+                    {item.id === selectedId ? t('mesh.history.selected') : t('mesh.history.select')}
+                  </Button>
+                  {measurements.length > 1 && (
+                    <Button size="small" danger onClick={() => removeMeasurement(item.id)}>
+                      {t('mesh.history.delete')}
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </Space>
+          )}
+        </Space>
+      </Card>
     </Space>
   )
 }

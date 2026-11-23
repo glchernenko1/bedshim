@@ -97,12 +97,21 @@ function makeLiftField(
   const safeSigma = Math.max(1e-6, sigma)
   const inv = 1 / (2 * safeSigma * safeSigma)
   return (x, y) => {
+    // Log-sum-exp trick: subtract the nearest squared distance so a tiny σ
+    // does not underflow every weight to zero.
+    let nearest = Number.POSITIVE_INFINITY
+    for (const centre of centres) {
+      const dx = centre.x - x
+      const dy = centre.y - y
+      const d2 = dx * dx + dy * dy
+      if (d2 < nearest) nearest = d2
+    }
     let sum = 0
     let weight = 0
     for (let index = 0; index < centres.length; index++) {
       const dx = centres[index]!.x - x
       const dy = centres[index]!.y - y
-      const w = Math.exp(-(dx * dx + dy * dy) * inv)
+      const w = Math.exp(-(dx * dx + dy * dy - nearest) * inv)
       sum += w * kernel[index]!.lift
       weight += w
     }

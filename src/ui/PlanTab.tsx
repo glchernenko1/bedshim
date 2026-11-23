@@ -267,6 +267,10 @@ export function PlanTab() {
                 </Col>
               </Row>
 
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('plan.aboveRef', { count: result.cells.filter((cell) => cell.mean > result.reference).length })}
+              </Typography.Text>
+
               {messages.map((message, index) => (
                 <Alert key={`${message.code}-${index}`} type="info" showIcon title={t(message.code, message.params)} />
               ))}

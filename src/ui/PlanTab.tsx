@@ -19,10 +19,12 @@ import { buildGrid } from '../core/grid'
 import { deadbandOf } from '../core/material'
 import { createSurface } from '../core/mesh/interpolate'
 import { plan, type Rounding } from '../core/plan'
+import { predictPlan, predictedMeshBlock } from '../core/forward'
 import { bedMeshSnippet, idealProbeCount, probeAdvice, probeEstimate } from '../core/probe'
 import { useT } from '../i18n'
 import { useAppStore } from '../state/store'
 import { LayerLegend, PlanGridCanvas } from './PlanGridCanvas'
+import { ResidualMapCanvas } from './ResidualMapCanvas'
 
 type Verdict = 'coarse' | 'good' | 'fine' | 'slow'
 
@@ -45,6 +47,7 @@ export function PlanTab() {
   const [plateW, setPlateW] = useState(235)
   const [plateH, setPlateH] = useState(235)
   const [percentile, setPercentile] = useState(0.85)
+  const [sigma, setSigma] = useState(22)
   const [maxLayers, setMaxLayers] = useState(6)
   const [rounding, setRounding] = useState<Rounding>('floor')
 
@@ -72,6 +75,11 @@ export function PlanTab() {
       maxLayers,
     })
   }, [surface, grid, material, percentile, rounding, maxLayers])
+
+  const prediction = useMemo(() => {
+    if (!surface || !result) return null
+    return predictPlan(result, surface, { sigma })
+  }, [surface, result, sigma])
 
   const probeRows = useMemo(() => {
     if (!mesh?.bounds) return []
@@ -288,6 +296,94 @@ export function PlanTab() {
             </Space>
           </Card>
 
+          {prediction && (
+            <Card title={t('plan.forward.title')}>
+              <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+                <Row gutter={[12, 8]}>
+                  <Col xs={12} sm={8} md={6}>
+                    <Statistic title={t('plan.forward.delivered')} value={prediction.delivered * 100} precision={0} suffix="%" />
+                  </Col>
+                  <Col xs={12} sm={8} md={6}>
+                    <Statistic title={t('plan.forward.achievable')} value={prediction.achievable * 100} precision={0} suffix="%" />
+                  </Col>
+                  <Col xs={12} sm={8} md={6}>
+                    <Statistic title={t('plan.forward.max')} value={prediction.maxAbsResidual} precision={4} suffix="mm" />
+                  </Col>
+                  <Col xs={12} sm={8} md={6}>
+                    <Statistic title={t('plan.forward.rms')} value={prediction.rmsResidual} precision={4} suffix="mm" />
+                  </Col>
+                </Row>
+
+                <Space size={8} wrap>
+                  <Tag
+                    color={
+                      prediction.delivered < 0.6
+                        ? 'error'
+                        : prediction.achievable >= 0.9
+                          ? 'success'
+                          : prediction.achievable >= 0.6
+                            ? 'warning'
+                            : 'blue'
+                    }
+                  >
+                    {t(
+                      `plan.forward.band.${
+                        prediction.delivered < 0.6
+                          ? 'poor'
+                          : prediction.achievable >= 0.9
+                            ? 'good'
+                            : prediction.achievable >= 0.6
+                              ? 'partial'
+                              : 'undershoot'
+                      }`,
+                    )}
+                  </Tag>
+                  <Typography.Text type="secondary">
+                    {t('plan.forward.achievable.hint', {
+                      ok: prediction.cells.filter((cell) => cell.plannedLift > 0 && cell.ok).length,
+                      taped: prediction.cells.filter((cell) => cell.plannedLift > 0).length,
+                      delivered: Math.round(prediction.delivered * 100),
+                    })}
+                  </Typography.Text>
+                </Space>
+
+                <div>
+                  <Typography.Text type="secondary">
+                    {t('plan.forward.sigma')} · {sigma} mm
+                  </Typography.Text>
+                  <Slider min={8} max={60} step={1} value={sigma} onChange={(value) => setSigma(Number(value))} />
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {t('plan.forward.sigma.hint')}
+                  </Typography.Text>
+                </div>
+
+                {prediction.warnings.map((warning, index) => (
+                  <Alert
+                    key={`${warning.code}-${index}`}
+                    type={warning.code === 'forward.notice.undershoot' ? 'info' : 'warning'}
+                    showIcon
+                    title={t(warning.code, warning.params)}
+                  />
+                ))}
+
+                <Typography.Title level={5} style={{ margin: 0 }}>
+                  {t('plan.forward.map.title')}
+                </Typography.Title>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('plan.forward.map.hint')}
+                </Typography.Text>
+                <ResidualMapCanvas grid={grid} prediction={prediction} />
+
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('plan.forward.export')}
+                </Typography.Text>
+                <Typography.Paragraph code copyable style={{ whiteSpace: 'pre-wrap', marginBottom: 0, maxHeight: 220, overflow: 'auto' }}>
+                  {predictedMeshBlock(prediction, mesh)}
+                </Typography.Paragraph>
+              </Space>
+            </Card>
+          )}
+
           <Card title={t('probe.title')}>
             <Space orientation="vertical" size={10} style={{ width: '100%' }}>
               <Typography.Text type="secondary">{t('probe.hint')}</Typography.Text>
@@ -316,7 +412,7 @@ export function PlanTab() {
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 {t('probe.snippet')}
               </Typography.Text>
-              <Typography.Paragraph code copyable style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
+              <Typography.Paragraph code copyable style={{ whiteSpace: 'pre-wrap', marginBottom: 0, maxHeight: 220, overflow: 'auto' }}>
                 {snippet}
               </Typography.Paragraph>
             </Space>

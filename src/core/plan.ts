@@ -143,11 +143,13 @@ export function quantize(target: number, material: Material, options: QuantizeOp
   return best
 }
 
-function cellStats(
-  surface: Surface,
-  cell: Cell,
-  samples: number,
-): { mean: number; min: number; max: number } {
+export interface CellMeasurements {
+  mean: number
+  min: number
+  max: number
+}
+
+export function cellStats(surface: Surface, cell: Cell, samples: number): CellMeasurements {
   const steps = Math.max(8, Math.floor(samples))
   const width = cell.x1 - cell.x0
   const height = cell.y1 - cell.y0

@@ -36,6 +36,10 @@ export const MESSAGE_CODES = [
   'probe.notice.overMeasuring',
   'probe.notice.coarserThanTape',
   'probe.warn.tooMany',
+  // forward model
+  'forward.warn.notAchievable',
+  'forward.notice.bridging',
+  'forward.notice.undershoot',
 ] as const
 
 export type MessageCode = (typeof MESSAGE_CODES)[number]

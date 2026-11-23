@@ -450,11 +450,18 @@ residual(cell)    = predicted - ref
 
 Report:
 
-- `achievable` — fraction of cells whose `|residual| < deadband` after the plan;
+- `achievable` — fraction of **taped** cells whose `|residual| < deadband` after
+  the plan. Cells without tape are already at the target by construction, so
+  counting them would hide a plan that fails exactly where it matters;
+- `delivered` — fraction of taped cells where the plate delivers the requested
+  lift (`|effectiveLift − plannedLift| < deadband`). This is the bridging
+  fidelity, independent of the quantisation error;
 - a predicted mesh that can be exported as a `[bed_mesh profile]` block so the
   user can compare before/after in Mainsail/Fluidd;
-- a warning when `achievable < 0.6`: "the plate physically cannot follow this
-  plan; coarsen it".
+- a warning when `delivered < 0.6`: "the plate physically cannot follow this
+  plan; coarsen it". When the plate delivers the plan but `achievable` is low,
+  the plan is undershooting on purpose (`floor`), and the report says so instead
+  of blaming the plate.
 
 The forward model is the **only** way to test the planner without printing.
 Synthetic deformations (plane, bowl, saddle, edge droop, single bump) must be

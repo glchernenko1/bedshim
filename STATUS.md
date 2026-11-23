@@ -12,7 +12,7 @@ draft of the spec.
 | P1 mesh | done | three mesh shapes, Klipper-exact bicubic surface, fixture golden tests |
 | P2 grid + plan | done | `buildGrid`, reference + quantization, golden plan, `probe_count` advice, plan screen |
 | extras | done | 2D heatmap, rotatable 3D surface (canvas), surface statistics (min/median/mean/max/Δ/MAD), manual tape thickness |
-| P3 forward | not started | σ-blur prediction, residual, `achievable` |
+| P3 forward | done | σ-blur prediction, per-cell residual, `achievable`/`delivered`, predicted mesh export |
 | P4 strips | not started | pieces, batches, printable instructions |
 | P5 STL + SVG | not started | manifold lattice, 1:1 SVG |
 | P6 calibration | not started | tape wizard (t1/ts from two meshes), apply + monotonic diff |
@@ -33,6 +33,11 @@ draft of the spec.
 - **Probe advice** — ideal count from the tape width (20 mm → 11×11 = 121 points,
   ≈4 min; 10 mm → 21×20 = 420, ≈14 min), always with time, never capped, plus a
   `printer.cfg` snippet.
+- **Prediction (P3)** — the tape field is blurred with σ (default 22 mm,
+  adjustable 8–60), giving the effective lift the plate delivers. The report
+  shows per-cell residual (µm map), worst/RMS residual, `delivered` (how much of
+  the requested lift arrives) and `achievable` (cells inside the deadband), plus
+  a paste-ready `[bed_mesh predicted]` block.
 - **Screen** — plate-sized layer map (hatched = unprobed), 2D/3D mesh view,
   material fields, EN/RU, works at 380 px, offline reload verified.
 
@@ -70,15 +75,20 @@ draft of the spec.
    P6 will compute both from two meshes (one patch → `t1`, second layer → `ts`).
 10. **3D view is canvas 2D** — orthographic projection, painter's algorithm, no
     WebGL and no new dependency.
-11. **Frame is plate-sized**, cells cover the probed rectangle. Cells whose centre
+11. **Achievable counts taped cells only.** A cell without tape is at the target
+    by construction; including it would hide a plan that fails where it matters
+    (and the P3 acceptance "a single-cell plan is < 0.4" only makes sense this
+    way). Bridging fidelity is reported separately as `delivered`. A `floor` plan
+    deliberately undershoots, so a low `achievable` there produces an
+    "undershoot by design" notice, not "the plate cannot follow".
+12. **Frame is plate-sized**, cells cover the probed rectangle. Cells whose centre
     is outside the mesh are hatched and get no tape; extending the plan into the
     unprobed margin (owner's idea) is **not implemented yet** — it needs a
     decision on how far to extrapolate and whether to tape that margin.
 
 ## Not built yet
 
-- P3: forward model, predicted mesh export, residual, `achievable`, and the
-  repeatability gate from §5.4.
+- Repeatability gate from §5.4 (two consecutive meshes) is not implemented yet.
 - P4: strips, batches, EN/RU instructions, printable sheet.
 - P5: manifold STL, 1:1 SVG.
 - P6: tape wizard and applying calibration.
@@ -88,7 +98,7 @@ draft of the spec.
 ## Verification
 
 ```bash
-npm test           # 77 tests, node environment
+npm test           # 83 tests, node environment
 npm run typecheck  # tsc --noEmit
 npm run build      # dist/, offline reload verified in Chromium
 npm run cli -- parse fixtures/neptune4-mesh.cfg

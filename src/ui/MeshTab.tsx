@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Alert, Button, Card, Descriptions, Input, Space, Tag, Typography } from 'antd'
-import exampleMesh from '../../fixtures/neptune4-mesh.block?raw'
+import { Alert, Button, Card, Descriptions, Dropdown, Input, Popconfirm, Space, Tag, Typography } from 'antd'
+import exampleOriginal from '../../fixtures/neptune4-mesh.block?raw'
+import examplePass1 from '../../fixtures/test-after-pass1.cfg?raw'
+import examplePass2 from '../../fixtures/test-after-pass2.cfg?raw'
 import { CoreError } from '../core/errors'
 import { createSurface } from '../core/mesh/interpolate'
 import { parseMesh } from '../core/mesh/parse'
@@ -30,11 +32,18 @@ export function MeshTab() {
   const addMeasurement = useAppStore((state) => state.addMeasurement)
   const selectMeasurement = useAppStore((state) => state.selectMeasurement)
   const removeMeasurement = useAppStore((state) => state.removeMeasurement)
+  const clearMeasurements = useAppStore((state) => state.clearMeasurements)
   const [failure, setFailure] = useState<Failure | null>(null)
 
   const selected = measurements.find((item) => item.id === selectedId) ?? null
   const parsed = selected?.mesh ?? null
   const profiles = selected?.profiles ?? []
+
+  const loadExample = (key: string) => {
+    const source = key === '2' ? examplePass1 : key === '3' ? examplePass2 : exampleOriginal
+    setText(source)
+    runParse(source)
+  }
 
   const runParse = (source: string) => {
     try {
@@ -83,14 +92,19 @@ export function MeshTab() {
             <Button type="primary" onClick={() => runParse(text)}>
               {t('mesh.button.parse')}
             </Button>
-            <Button
-              onClick={() => {
-                setText(exampleMesh)
-                runParse(exampleMesh)
+            <Dropdown
+              trigger={['click']}
+              menu={{
+                items: [
+                  { key: '1', label: t('mesh.example.1') },
+                  { key: '2', label: t('mesh.example.2') },
+                  { key: '3', label: t('mesh.example.3') },
+                ],
+                onClick: ({ key }) => loadExample(key),
               }}
             >
-              {t('mesh.button.example')}
-            </Button>
+              <Button>{t('mesh.button.example')}</Button>
+            </Dropdown>
             <Button
               onClick={() => {
                 setText('')
@@ -270,6 +284,18 @@ export function MeshTab() {
                 </div>
               ))}
             </Space>
+          )}
+          {measurements.length > 0 && (
+            <Popconfirm
+              title={t('mesh.history.clearTitle')}
+              description={t('mesh.history.clearBody')}
+              okText={t('mesh.history.clearOk')}
+              cancelText={t('mesh.history.clearCancel')}
+              okButtonProps={{ danger: true }}
+              onConfirm={clearMeasurements}
+            >
+              <Button danger>{t('mesh.history.clear')}</Button>
+            </Popconfirm>
           )}
         </Space>
       </Card>

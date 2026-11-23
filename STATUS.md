@@ -38,6 +38,10 @@ draft of the spec.
   shows per-cell residual (µm map), worst/RMS residual, `delivered` (how much of
   the requested lift arrives) and `achievable` (cells inside the deadband), plus
   a paste-ready `[bed_mesh predicted]` block.
+- **Example picker** — "Load example" offers 1) the original bed, 2) the
+  synthetic after-pass-1 mesh (fits t1/ts), 3) after-pass-2 (fits ts), so the
+  calibration loop can be clicked through without a printer. "Clear all
+  measurements" asks for confirmation.
 - **Measurement history** — every parsed map is stored with its parse text,
   grid and (after a plan is marked as glued) the absolute layer state of the
   bed. Any measurement can be selected for analysis or planning; the first one

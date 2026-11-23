@@ -78,7 +78,8 @@ export function CalibrationCard() {
 
   const apply = (): void => {
     if (!fit) return
-    setMaterial({ ...material, t1: fit.t1, ts: fit.ts, calibrated: true })
+    const round = (value: number): number => Math.round(value * 10000) / 10000
+    setMaterial({ ...material, t1: round(fit.t1), ts: round(fit.ts), calibrated: true })
   }
 
   return (

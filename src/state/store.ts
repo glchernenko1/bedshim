@@ -50,6 +50,7 @@ export interface AppState {
   selectMeasurement: (id: string) => void
   removeMeasurement: (id: string) => void
   applyPlan: (plan: AppliedPlan) => void
+  clearMeasurements: () => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -106,6 +107,8 @@ export const useAppStore = create<AppState>()(
             item.id === state.selectedId ? { ...item, applied: plan } : item,
           ),
         })),
+
+      clearMeasurements: () => set({ measurements: [], selectedId: null, pending: null }),
     }),
     {
       name: 'bedshim.settings',

@@ -16,16 +16,19 @@ Keep the default plan settings everywhere: **tape 20 mm, plate 235 mm,
 reference percentile 0.85, rounding floor**, material unmeasured
 (`t1 = ts = 0.03`) for pass 1.
 
-1. **Карта / Mesh** → paste `neptune4-mesh.cfg` → **Add measurement** (M1).
+0. **Карта / Mesh** → **Clear all measurements** (confirm) if the list is not empty.
+1. **Карта / Mesh** → **Load example → 1 — original bed** (or paste `neptune4-mesh.cfg`) → it is added as M1.
 2. **План** → **Mark plan as glued**. (This records the layer state.)
-3. **Карта** → paste `test-after-pass1.cfg` → **Add measurement** (M2).
+3. **Карта** → **Load example → 2 — after pass 1** (or paste `test-after-pass1.cfg`) → M2.
 4. **План** → **Calibration** shows `M1 → M2` → **Fit t1 / ts**.
-   Expected: **t1 ≈ 0.025 mm, ts ≈ 0.040 mm**, R² ≈ 1.
+   Expected: **t1 ≈ 0.0250 mm, ts ≈ 0.0399 mm**, R² ≈ 0.999. The applied values are
+rounded to 4 decimals.
    Press **Use these values** (material becomes measured; rounding stays floor).
 5. **План** → **Mark plan as glued** for M2 (plan now uses the fitted material).
-6. **Карта** → paste `test-after-pass2.cfg` → **Add measurement** (M3).
+6. **Карта** → **Load example → 3 — after pass 2** (or paste `test-after-pass2.cfg`) → M3.
 7. **План** → **Calibration** shows `M2 → M3` → **Fit t1 / ts**.
-   Expected: t1 is kept from the material, **ts ≈ 0.040 mm**.
+   Expected: t1 is kept from the material (0.0250), **ts ≈ 0.0399 mm**, R² ≈ 0.999.
+Only five cells change layers (+1 each), which is why this pair measures ts.
 
 If the plan settings or the rounding mode are changed, the applied layer matrix
 no longer matches the generating scenario and the second fit will not reproduce

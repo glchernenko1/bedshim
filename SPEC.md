@@ -103,7 +103,7 @@ Three conventions, if wrong, produce a plan that is *worse than doing nothing*
 | Convention | Value | Risk |
 |---|---|---|
 | Row order | row 0 of `points` = `min_y` | plan flipped in Y |
-| Sign | `meshSign: 'high' \| 'low'` — does a positive mesh value mean the plate is high (closer to nozzle) or low? | plan inverted |
+| Sign | `meshSign: 'high' \| 'low'` — does a positive mesh value mean the plate is high (closer to nozzle) or low? **Klipper stores the probe trigger height, so a positive value means high**; `'low'` exists only for exports whose sign was inverted. | plan inverted |
 | View | `top` (plate installed, looking down) vs `bottom` (plate flipped, working on the underside) | plan mirrored |
 
 Implement all three as explicit settings (`flipY`, `flipX`, `meshSign`, `view`)
@@ -664,7 +664,7 @@ the dictionary. Identifiers, comments and commit messages: English.
 | P1 mesh | `fixtures/neptune4-mesh.cfg` (SAVE_CONFIG), `.block` and `.points` all parse to the same 11×11 matrix, cell-for-cell identical; malformed input gives a useful error; bicubic matches a hand-computed fixture at 5 sample points |
 | P2 grid+plan | `buildGrid` for tape 20 mm on the fixture yields 10×10 with ids `A1..J10`; plan reproduces the golden layer matrix in App. A; re-planning the same mesh is a no-op and peeling never goes below zero; the `probe_count` suggestion is derived from tape width (`20 mm → 11×11` for the fixture, `10 mm → 21×20`), always shown with estimated probe time, and never silently capped |
 | P3 forward | σ-blur prediction on a synthetic bowl leaves `achievable > 0.9`; a single-cell plan is reported as `achievable < 0.4` |
-| P4 strips | Fixture plan → 38 pieces / 1420 mm; batch list groups them; instruction text renders in EN and RU |
+| P4 strips | Fixture plan → 22 pieces / 2240 mm; batch list groups them; instruction text renders in EN and RU |
 | P5 STL | Manifold test passes; bounding box = plate; STL opens in the slicer without repair; printed sheet is 2–3 g |
 | P6 calibration | Synthetic t1/ts recovered within 5 % from a noisy mesh; two iterations converge; wizard state machine covered by tests |
 
@@ -737,7 +737,8 @@ Values only, in mesh order — row 0 = `min_y` = 21 mm (front), column 0 =
 0.022500, 0.012500, -0.017500, -0.040000, -0.005000, 0.002500, -0.002500, 0.015000, 0.035000, 0.030000, 0.027500
 ```
 
-Sheet statistics (computed over the 10×10 cell means, `positive = bed low`):
+Sheet statistics (computed over the 10×10 cell means; Klipper stores the probe
+trigger height, so positive = the plate is **high**, closer to the nozzle):
 
 | | |
 |---|---|
@@ -746,44 +747,45 @@ Sheet statistics (computed over the 10×10 cell means, `positive = bed low`):
 | q20 | −0.0045 |
 | full node range | −0.0475 … +0.1175 (0.165, dominated by one edge node) |
 
-Plan params: `tapeWidth = 20`, `t1 = ts = 0.03`, `referencePercentile = 0.82`
-(quantile of plate height; equivalently q20 ≈ −0.0045 of the cell means),
+Plan params: `tapeWidth = 20`, `t1 = ts = 0.03`, `meshSign = 'high'`,
+`referencePercentile = 0.85` (the default) → `ref = +0.0463`,
 `deadband = 0.4 * ts`, `sigma = 22`, `rounding = round`.
 
 Expected `layers` (rows A..J front→back, cols 1..10 left→right):
 
 ```
-A  3 2 1 0 0 0 0 0 1 2
-B  3 2 1 0 0 0 0 0 1 2
-C  3 2 1 1 1 0 0 0 1 2
-D  2 1 0 0 0 0 0 0 1 2
-E  2 2 0 0 0 0 0 0 1 2
-F  3 2 1 0 1 0 0 1 1 1
-G  2 1 0 0 1 0 0 1 1 2
-H  1 0 0 0 0 0 0 1 1 1
-I  1 0 0 0 0 0 0 0 1 1
-J  1 0 0 0 0 0 0 1 1 1
+A  0 0 1 2 2 2 3 2 1 0
+B  0 0 1 1 1 2 2 2 1 0
+C  0 0 1 1 1 2 2 2 1 0
+D  0 0 1 2 1 2 2 1 1 0
+E  0 0 1 2 1 2 2 1 1 0
+F  0 0 1 1 1 1 1 1 1 0
+G  0 1 2 2 1 1 1 1 0 0
+H  1 1 2 2 2 2 1 1 1 0
+I  1 1 2 2 2 2 2 1 1 1
+J  1 1 2 2 2 2 2 1 1 1
 ```
 
-Total layers 71, **38 pieces**, **1420 mm** of 20 mm tape.
+Total layers 112, **22 pieces**, **2240 mm** of 20 mm tape.
 
-> **Regenerated (Nov 2026, owner-approved).** This table was re-baselined with the
-> Klipper-bicubic surface the app actually uses; the earlier bilinear table
-> (72 layers, 39 pieces, 1440 mm, cell E3 = 1) is kept in `plan.test.ts` as a
-> provenance test, so it is not lost.
+> **Regenerated (Nov 2026, owner-approved).** The first version of this table
+> assumed `positive = bed low`, which inverted the plan: Klipper stores the
+> probe trigger height, so a positive value is a **high** spot. This table uses
+> Klipper's sign and the Klipper-bicubic surface. The mesh itself and its
+> statistics are unchanged.
 
 First rows of the cut list:
 
 ```
-Row A: L1 A1–A3 (60), L1 A9–A10 (40), L2 A1–A2 (40), L2 A10 (20), L3 A1 (20)
-Row B: L1 B1–B3 (60), L1 B9–B10 (40), L2 B1–B2 (40), L2 B10 (20), L3 B1 (20)
-Row C: L1 C1–C5 (100), L1 C9–C10 (40), L2 C1–C2 (40), L2 C10 (20), L3 C1 (20)
-Row D: L1 D1–D2 (40), L1 D9–D10 (40), L2 D1 (20), L2 D10 (20)
-Row E: L1 E1–E2 (40), L1 E9–E10 (40), L2 E1–E2 (40), L2 E10 (20)
+Row A: L1 A3–A9 (140), L2 A4–A8 (100), L3 A7 (20)
+Row B: L1 B3–B9 (140), L2 B6–B8 (60)
+Row C: L1 C3–C9 (140), L2 C6–C8 (60)
+Row D: L1 D3–D9 (140), L2 D4 (20), L2 D6–D7 (40)
+Row E: L1 E3–E9 (140), L2 E4 (20), L2 E6–E7 (40)
 ```
 
-The shape — both X edges low, middle high — is real for this printer, and it is
-exactly why the plan reads as vertical stripes. Keep this as the golden test.
+The shape — both X edges high, middle low — is real for this printer, and it is
+exactly why the plan reads as a wide vertical band down the middle. Keep this as the golden test.
 
 ---
 

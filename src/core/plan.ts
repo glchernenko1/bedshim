@@ -78,7 +78,11 @@ export interface PlanOptions {
   /** Default 'floor' until the material is calibrated, then 'round'. */
   rounding?: Rounding
   maxLayers?: number
-  /** How to read a positive mesh value. Default 'low' (the fixture). */
+  /**
+   * How to read a positive mesh value. Klipper stores the probe trigger height,
+   * so positive means the plate is closer to the nozzle: default 'high'.
+   * 'low' exists for meshes exported with an inverted sign (§2).
+   */
   meshSign?: MeshSign
   /** Subgrid per axis for the cell mean; SPEC §5.3 requires ≥ 8. Default 16. */
   cellSamples?: number
@@ -227,7 +231,7 @@ export function plan(options: PlanOptions): Plan {
     sigma = 22,
     rounding = material.calibrated ? 'round' : 'floor',
     maxLayers = 6,
-    meshSign = 'low',
+    meshSign = 'high',
     cellSamples = 16,
     smoothTarget = false,
   } = options

@@ -11,30 +11,17 @@ const material: Material = { nominal: 0.05, t1: 0.03, ts: 0.03, calibrated: true
 const fixtureText = readFileSync(new URL('../../fixtures/neptune4-mesh.cfg', import.meta.url), 'utf8')
 
 // Historical bilinear table from the first version of Appendix A.
-const GOLDEN_BICUBIC = [
-  [3, 2, 1, 0, 0, 0, 0, 0, 1, 2],
-  [3, 2, 1, 0, 0, 0, 0, 0, 1, 2],
-  [3, 2, 1, 1, 1, 0, 0, 0, 1, 2],
-  [2, 1, 0, 0, 0, 0, 0, 0, 1, 2],
-  [2, 2, 0, 0, 0, 0, 0, 0, 1, 2],
-  [3, 2, 1, 0, 1, 0, 0, 1, 1, 1],
-  [2, 1, 0, 0, 1, 0, 0, 1, 1, 2],
-  [1, 0, 0, 0, 0, 0, 0, 1, 1, 1],
-  [1, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-  [1, 0, 0, 0, 0, 0, 0, 1, 1, 1],
-]
-
-const HISTORICAL_BILINEAR = [
-  [3, 2, 1, 0, 0, 0, 0, 0, 1, 2],
-  [3, 2, 1, 0, 0, 0, 0, 0, 1, 2],
-  [3, 2, 1, 1, 1, 0, 0, 0, 1, 2],
-  [2, 1, 0, 0, 0, 0, 0, 0, 1, 2],
-  [2, 2, 1, 0, 0, 0, 0, 0, 1, 2],
-  [3, 2, 1, 0, 1, 0, 0, 1, 1, 1],
-  [2, 1, 0, 0, 1, 0, 0, 1, 1, 2],
-  [1, 0, 0, 0, 0, 0, 0, 1, 1, 1],
-  [1, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-  [1, 0, 0, 0, 0, 0, 0, 1, 1, 1],
+const GOLDEN = [
+  [0, 0, 1, 2, 2, 2, 3, 2, 1, 0],
+  [0, 0, 1, 1, 1, 2, 2, 2, 1, 0],
+  [0, 0, 1, 1, 1, 2, 2, 2, 1, 0],
+  [0, 0, 1, 2, 1, 2, 2, 1, 1, 0],
+  [0, 0, 1, 2, 1, 2, 2, 1, 1, 0],
+  [0, 0, 1, 1, 1, 1, 1, 1, 1, 0],
+  [0, 1, 2, 2, 1, 1, 1, 1, 0, 0],
+  [1, 1, 2, 2, 2, 2, 1, 1, 1, 0],
+  [1, 1, 2, 2, 2, 2, 2, 1, 1, 1],
+  [1, 1, 2, 2, 2, 2, 2, 1, 1, 1],
 ]
 
 function fixturePlan(overrides: Partial<PlanOptions> = {}) {
@@ -52,14 +39,10 @@ function fixturePlan(overrides: Partial<PlanOptions> = {}) {
     surface,
     grid,
     material,
-    referencePercentile: 0.82,
+    referencePercentile: 0.85,
     rounding: 'round',
     ...overrides,
   })
-}
-
-function bilinearSurface(mesh: Mesh) {
-  return createSurface({ ...mesh, algo: 'bilinear' })
 }
 
 describe('quantile', () => {
@@ -110,26 +93,24 @@ describe('quantize', () => {
 })
 
 describe('plan — Appendix A golden', () => {
-  it('reproduces the golden matrix exactly with the surface Appendix A used (bilinear)', () => {
-    // Provenance: Appendix A was generated with bilinear interpolation and a
-    // reference at q20 of the mesh values (our 82nd percentile of height).
-    const { mesh } = parseMesh(fixtureText)
-    const result = fixturePlan({ surface: bilinearSurface(mesh) })
-    expect(result.layers).toEqual(HISTORICAL_BILINEAR)
-    expect(result.stats.totalLayers).toBe(72)
-    expect(result.stats.cellsWithTape).toBe(50)
-    expect(result.stats.tapeLengthMM).toBe(1440)
-    expect(result.reference).toBeGreaterThan(0.004)
-    expect(result.reference).toBeLessThan(0.005)
+  it('reproduces the golden matrix of Appendix A', () => {
+    const result = fixturePlan()
+    expect(result.layers).toEqual(GOLDEN)
+    expect(result.stats.totalLayers).toBe(112)
+    expect(result.stats.cellsWithTape).toBe(78)
+    expect(result.stats.tapeLengthMM).toBe(2240)
+    expect(result.reference).toBeGreaterThan(0.04)
+    expect(result.reference).toBeLessThan(0.05)
   })
 
-  it('reproduces the bicubic golden matrix of Appendix A', () => {
-    const result = fixturePlan()
-    expect(result.layers).toEqual(GOLDEN_BICUBIC)
-    expect(result.layers[4]![2]).toBe(0) // E3 sits under the deadband on the bicubic surface
-    expect(result.stats.totalLayers).toBe(71)
-    expect(result.stats.cellsWithTape).toBe(49)
-    expect(result.stats.tapeLengthMM).toBe(1420)
+  it('honours the sign convention: a positive value means the plate is high', () => {
+    const high = fixturePlan()
+    const low = fixturePlan({ meshSign: 'low' })
+    // A1 is measured high (+0.09), so under Klipper's sign it needs no tape.
+    expect(high.layers[0]![0]).toBe(0)
+    // Reading the same mesh with the inverted sign puts tape there instead.
+    expect(low.layers[0]![0]).toBeGreaterThan(0)
+    expect(low.stats.totalLayers).not.toBe(high.stats.totalLayers)
   })
 
   it('is a pure function of its inputs', () => {

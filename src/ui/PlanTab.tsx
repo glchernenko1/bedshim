@@ -9,6 +9,7 @@ import {
   Row,
   Segmented,
   Slider,
+  Switch,
   Space,
   Statistic,
   Table,
@@ -16,7 +17,7 @@ import {
   Typography,
 } from 'antd'
 import { buildGrid, type GridView } from '../core/grid'
-import { DEFAULT_MATERIAL, deadbandOf } from '../core/material'
+import { deadbandOf } from '../core/material'
 import { createSurface } from '../core/mesh/interpolate'
 import { plan, type MeshSign, type Rounding } from '../core/plan'
 import { bedMeshSnippet, idealProbeCount, probeAdvice, probeEstimate } from '../core/probe'
@@ -38,6 +39,8 @@ const fmt = (value: number, digits = 4): string => value.toFixed(digits)
 export function PlanTab() {
   const t = useT()
   const mesh = useAppStore((state) => state.mesh)
+  const material = useAppStore((state) => state.material)
+  const setMaterial = useAppStore((state) => state.setMaterial)
 
   const [tapeWidth, setTapeWidth] = useState(20)
   const [plateW, setPlateW] = useState(235)
@@ -45,7 +48,7 @@ export function PlanTab() {
   const [percentile, setPercentile] = useState(0.85)
   const [maxLayers, setMaxLayers] = useState(6)
   const [rounding, setRounding] = useState<Rounding>('floor')
-  const [sign, setSign] = useState<MeshSign>('low')
+  const [sign, setSign] = useState<MeshSign>('high')
   const [view, setView] = useState<GridView>('top')
   const [confirmed, setConfirmed] = useState(false)
 
@@ -68,13 +71,13 @@ export function PlanTab() {
     return plan({
       surface,
       grid,
-      material: DEFAULT_MATERIAL,
+      material,
       referencePercentile: percentile,
       rounding,
       maxLayers,
       meshSign: sign,
     })
-  }, [surface, grid, confirmed, percentile, rounding, maxLayers, sign])
+  }, [surface, grid, confirmed, material, percentile, rounding, maxLayers, sign])
 
   const probeRows = useMemo(() => {
     if (!mesh?.bounds) return []
@@ -110,7 +113,7 @@ export function PlanTab() {
   }
 
   const messages = [...(grid?.warnings ?? []), ...(result?.warnings ?? []), ...(surface?.notices ?? []), ...advice]
-  const deadband = deadbandOf(DEFAULT_MATERIAL)
+  const deadband = deadbandOf(material)
 
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
@@ -133,6 +136,60 @@ export function PlanTab() {
               <Typography.Text type="secondary">{t('plan.field.maxLayers')}</Typography.Text>
               <InputNumber min={1} max={12} value={maxLayers} onChange={(value) => value && setMaxLayers(value)} style={{ width: '100%' }} />
             </Col>
+            <Col xs={12} sm={8} md={4}>
+              <Typography.Text type="secondary">{t('plan.field.nominal')}</Typography.Text>
+              <InputNumber
+                min={0.01}
+                max={0.5}
+                step={0.01}
+                value={material.nominal}
+                onChange={(value) => {
+                  if (!value) return
+                  setMaterial(
+                    material.calibrated
+                      ? { ...material, nominal: value }
+                      : { ...material, nominal: value, t1: 0.6 * value, ts: 0.6 * value },
+                  )
+                }}
+                style={{ width: '100%' }}
+              />
+            </Col>
+            <Col xs={12} sm={8} md={4}>
+              <Typography.Text type="secondary">{t('plan.field.calibrated')}</Typography.Text>
+              <div>
+                <Switch
+                  checked={material.calibrated}
+                  onChange={(checked) => {
+                    setMaterial({ ...material, calibrated: checked })
+                    setRounding(checked ? 'round' : 'floor')
+                  }}
+                />
+              </div>
+            </Col>
+            <Col xs={12} sm={8} md={4}>
+              <Typography.Text type="secondary">{t('plan.field.t1')}</Typography.Text>
+              <InputNumber
+                min={0.005}
+                max={0.3}
+                step={0.005}
+                disabled={!material.calibrated}
+                value={material.t1}
+                onChange={(value) => value && setMaterial({ ...material, t1: value })}
+                style={{ width: '100%' }}
+              />
+            </Col>
+            <Col xs={12} sm={8} md={4}>
+              <Typography.Text type="secondary">{t('plan.field.ts')}</Typography.Text>
+              <InputNumber
+                min={0.005}
+                max={0.3}
+                step={0.005}
+                disabled={!material.calibrated}
+                value={material.ts}
+                onChange={(value) => value && setMaterial({ ...material, ts: value })}
+                style={{ width: '100%' }}
+              />
+            </Col>
             <Col xs={24} sm={12} md={8}>
               <Typography.Text type="secondary">{t('plan.field.rounding')}</Typography.Text>
               <Segmented<Rounding>
@@ -144,6 +201,9 @@ export function PlanTab() {
                   { label: t('plan.rounding.round'), value: 'round' },
                 ]}
               />
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('plan.rounding.hint')}
+              </Typography.Text>
             </Col>
             <Col xs={24} sm={12} md={8}>
               <Typography.Text type="secondary">{t('plan.field.sign')}</Typography.Text>
@@ -174,10 +234,15 @@ export function PlanTab() {
                 {t('plan.field.percentile')} · {percentile.toFixed(2)}
               </Typography.Text>
               <Slider min={0.5} max={0.95} step={0.01} value={percentile} onChange={(value) => setPercentile(Number(value))} />
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('plan.field.percentile.hint')}
+              </Typography.Text>
             </Col>
             <Col xs={24} md={12}>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {t('plan.material.note', { ts: fmt(DEFAULT_MATERIAL.ts, 3), deadband: fmt(deadband, 3) })}
+                {t('plan.material.note', { deadband: fmt(deadband, 3) })}
+                <br />
+                {material.calibrated ? t('plan.material.measured') : t('plan.material.fallback')}
               </Typography.Text>
             </Col>
           </Row>

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Lang } from '../i18n'
 import type { Mesh, MeshProfileRef } from '../core/mesh/types'
+import { DEFAULT_MATERIAL, type Material } from '../core/material'
 
 export interface AppState {
   lang: Lang
@@ -13,6 +14,9 @@ export interface AppState {
   mesh: Mesh | null
   profiles: MeshProfileRef[]
   setMesh: (mesh: Mesh | null, profiles?: MeshProfileRef[]) => void
+  /** Tape parameters: nominal plus the two effective lifts. */
+  material: Material
+  setMaterial: (material: Material) => void
 }
 
 // UI preferences and the current project data. Persisted to localStorage.
@@ -26,7 +30,9 @@ export const useAppStore = create<AppState>()(
       mesh: null,
       profiles: [],
       setMesh: (mesh, profiles = []) => set({ mesh, profiles }),
+      material: DEFAULT_MATERIAL,
+      setMaterial: (material) => set({ material }),
     }),
-    { name: 'bedshim.settings', version: 2 },
+    { name: 'bedshim.settings', version: 3 },
   ),
 )

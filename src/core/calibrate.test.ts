@@ -6,7 +6,8 @@ import { createSurface } from './mesh/interpolate'
 import type { Mesh } from './mesh/types'
 
 const bounds = { minX: 10, maxX: 210, minY: 21, maxY: 211 }
-const trueMaterial: Material = { nominal: 0.05, t1: 0.025, ts: 0.04, calibrated: true }
+const TRUE_TS = 0.04
+const trueMaterial: Material = { nominal: 0.05, t1: 0.025, ts: TRUE_TS, calibrated: true }
 
 function grid() {
   return buildGrid({ plate: { w: 235, h: 235 }, meshBounds: bounds, tapeWidth: 20, meshXCount: 11, meshYCount: 11 })
@@ -66,7 +67,7 @@ function blurredLiftAt(x: number, y: number, layers: number[][], sigma: number):
     const dy = cy - y
     const w = Math.exp(-(dx * dx + dy * dy) * inv)
     const n = layers[cell.row]?.[cell.col] ?? 0
-    const lift = n === 0 ? 0 : trueMaterial.t1 + (n - 1) * trueMaterial.ts
+    const lift = n === 0 ? 0 : trueMaterial.t1 + (n - 1) * TRUE_TS
     sum += w * lift
     weight += w
   }
@@ -102,7 +103,7 @@ describe('fitMaterial', () => {
       sigma: 22,
     })
     expect(Math.abs(fit.t1 - trueMaterial.t1) / trueMaterial.t1).toBeLessThan(0.02)
-    expect(Math.abs(fit.ts - trueMaterial.ts) / trueMaterial.ts).toBeLessThan(0.02)
+    expect(Math.abs(fit.ts - TRUE_TS) / TRUE_TS).toBeLessThan(0.02)
     expect(fit.r2).toBeGreaterThan(0.99)
     expect(fit.conclusive).toBe(true)
   })
@@ -122,7 +123,7 @@ describe('fitMaterial', () => {
       sigma: 22,
     })
     expect(Math.abs(fit.t1 - trueMaterial.t1) / trueMaterial.t1).toBeLessThan(0.05)
-    expect(Math.abs(fit.ts - trueMaterial.ts) / trueMaterial.ts).toBeLessThan(0.05)
+    expect(Math.abs(fit.ts - TRUE_TS) / TRUE_TS).toBeLessThan(0.05)
     expect(fit.noise).toBeGreaterThan(0)
   })
 
@@ -141,7 +142,7 @@ describe('fitMaterial', () => {
       sigma: 22,
     })
     expect(fit.t1).toBeCloseTo(trueMaterial.t1, 2)
-    expect(fit.ts).toBeCloseTo(trueMaterial.ts, 2)
+    expect(fit.ts).toBeCloseTo(TRUE_TS, 2)
   })
 
   it('refuses to fit when no cell changed layers', () => {

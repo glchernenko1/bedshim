@@ -386,7 +386,7 @@ The app suggests; the user edits `printer.cfg`.
 plan(opts: {
   surface: Surface;
   grid: Grid;                       // carries plate, bounds and cell rectangles
-  material: Material;               // nominal, t1, ts, calibrated
+  material: Material;               // nominal, t1, ts (null = unknown), calibrated
   referencePercentile?: number;     // 0..1, default 0.85
   deadband?: number;                // default 0.4 * ts
   sigma?: number;                   // default 22, used only with smoothTarget
@@ -560,8 +560,11 @@ Unknown tape is the normal case; never require the user to know it.
 6. `noise` = std inside the patch. If `t1 < 2 * noise`, tell the user the
    measurement is not conclusive and to use a bigger patch.
 
-Fallback when uncalibrated: `t1 = ts = 0.6 * nominal`, plan flagged
-`calibrated: false`, rounding forced to `floor`.
+Fallback when uncalibrated: `t1 = 0.6 * nominal` and `ts = null`. An unknown
+`ts` is **not** invented: `lift(n) = t1 + (n − 1) · (ts ?? t1)` and the deadband
+uses `ts ?? t1`, so the UI shows an empty `ts` and says that further layers are
+counted as `t1`. The plan is flagged `calibrated: false` and rounding is forced
+to `floor`. Once the calibration yields `ts`, rounding switches to `round`.
 
 ### 9.4 Per-cell flags
 

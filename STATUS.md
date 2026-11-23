@@ -83,8 +83,10 @@ draft of the spec.
    `round` = nearest layer count. The app states that the first iteration must
    stay on `floor`, and warns if `round` is chosen for an unmeasured tape.
 9. **Tape thickness is manual until P6.** `nominal`, `t1`, `ts` and a "measured"
-   switch are editable and persisted. While unmeasured, `t1 = ts = 0.6 × nominal`.
-   P6 will compute both from two meshes (one patch → `t1`, second layer → `ts`).
+   switch are editable and persisted. While `ts` is unknown it is stored as
+   `null` and the maths uses `ts ?? t1` (shown as an empty field, not a made-up
+   number). P6 computes both from two meshes, and applying the fit switches
+   rounding to `round` automatically.
 10. **3D view is canvas 2D** — orthographic projection, painter's algorithm, no
     WebGL and no new dependency.
 11. **Achievable counts taped cells only.** A cell without tape is at the target

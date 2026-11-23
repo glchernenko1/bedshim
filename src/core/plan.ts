@@ -1,4 +1,4 @@
-import { deadbandOf, lift, type Material } from './material'
+import { deadbandOf, furtherLayer, lift, type Material } from './material'
 import type { CoreMessage } from './messages'
 import type { Grid, Cell } from './grid'
 import type { Surface } from './mesh/interpolate'
@@ -310,7 +310,7 @@ export function plan(options: PlanOptions): Plan {
       }
       maxUsed = Math.max(maxUsed, layers)
       if (cell.unprobed) unprobed++
-      if (range > 0.5 * material.ts) inconsistent++
+      if (range > 0.5 * furtherLayer(material)) inconsistent++
       if (idealWanted > maxLayers) clamped++
       cells.push({
         id: cell.id,
@@ -326,7 +326,7 @@ export function plan(options: PlanOptions): Plan {
         layers,
         unprobed: cell.unprobed,
         partial: cell.partial,
-        inconsistent: range > 0.5 * material.ts,
+        inconsistent: range > 0.5 * furtherLayer(material),
         clamped: idealWanted > maxLayers,
       })
     }

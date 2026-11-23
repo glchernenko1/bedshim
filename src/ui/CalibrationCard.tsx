@@ -30,6 +30,7 @@ export function CalibrationCard() {
   const material = useAppStore((state) => state.material)
   const setMaterial = useAppStore((state) => state.setMaterial)
   const setMeasurementLayers = useAppStore((state) => state.setMeasurementLayers)
+  const setRounding = useAppStore((state) => state.setRounding)
   const [fromId, setFromId] = useState<string | null>(null)
   const [toId, setToId] = useState<string | null>(null)
   const [fit, setFit] = useState<FitResult | null>(null)
@@ -94,6 +95,8 @@ export function CalibrationCard() {
     if (!fit) return
     const round = (value: number): number => Math.round(value * 10000) / 10000
     setMaterial({ ...material, t1: round(fit.t1), ts: round(fit.ts), calibrated: true })
+    // With both values measured, nearest-layer rounding is safe and expected.
+    setRounding('round')
   }
 
   const params = { previous: from.label, current: to.label }
@@ -136,7 +139,7 @@ export function CalibrationCard() {
               </Button>
               {material.calibrated && (
                 <Typography.Text type="secondary">
-                  {t('calib.current', { t1: material.t1.toFixed(4), ts: material.ts.toFixed(4) })}
+                  {t('calib.current', { t1: material.t1.toFixed(4), ts: material.ts === null ? '—' : material.ts.toFixed(4) })}
                 </Typography.Text>
               )}
             </Space>

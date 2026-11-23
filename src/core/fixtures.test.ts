@@ -8,7 +8,8 @@ import { parseMesh } from './mesh/parse'
 import type { Mesh } from './mesh/types'
 import { plan } from './plan'
 
-const TRUE: Material = { nominal: 0.05, t1: 0.025, ts: 0.04, calibrated: true }
+const TRUE_TS = 0.04
+const TRUE: Material = { nominal: 0.05, t1: 0.025, ts: TRUE_TS, calibrated: true }
 
 function read(name: string): string {
   return readFileSync(new URL(`../../fixtures/${name}`, import.meta.url), 'utf8')
@@ -61,7 +62,7 @@ describe('test measurements (fixtures/test-after-pass*.cfg)', () => {
       grid,
     })
     expect(fit.t1).toBeCloseTo(TRUE.t1, 3)
-    expect(fit.ts).toBeCloseTo(TRUE.ts, 3)
+    expect(fit.ts).toBeCloseTo(TRUE_TS, 3)
     expect(fit.r2).toBeGreaterThan(0.99)
   })
 
@@ -91,7 +92,7 @@ describe('test measurements (fixtures/test-after-pass*.cfg)', () => {
       fixedT1: TRUE.t1,
     })
     expect(fit.t1).toBeCloseTo(TRUE.t1, 3)
-    expect(fit.ts).toBeCloseTo(TRUE.ts, 3)
+    expect(fit.ts).toBeCloseTo(TRUE_TS, 3)
     expect(fit.r2).toBeGreaterThan(0.99)
   })
 })

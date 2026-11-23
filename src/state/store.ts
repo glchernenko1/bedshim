@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { Lang } from '../i18n'
 import type { Mesh, MeshProfileRef } from '../core/mesh/types'
 import { DEFAULT_MATERIAL, type Material } from '../core/material'
+import type { Rounding } from '../core/plan'
 
 /** Geometry of a plan the user says they applied to the bed. */
 export interface AppliedPlan {
@@ -36,6 +37,8 @@ export interface AppState {
   setLang: (lang: Lang) => void
   material: Material
   setMaterial: (material: Material) => void
+  rounding: Rounding
+  setRounding: (rounding: Rounding) => void
 
   /** Text in the paste box, kept across reloads. */
   draftText: string
@@ -62,6 +65,8 @@ export const useAppStore = create<AppState>()(
       setLang: (lang) => set({ lang }),
       material: DEFAULT_MATERIAL,
       setMaterial: (material) => set({ material }),
+      rounding: 'floor',
+      setRounding: (rounding) => set({ rounding }),
 
       draftText: '',
       setDraftText: (draftText) => set({ draftText }),
@@ -119,7 +124,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'bedshim.settings',
-      version: 4,
+      version: 5,
       // Older builds stored a single mesh; missing keys fall back to the defaults.
       migrate: (persisted) => persisted as AppState,
     },

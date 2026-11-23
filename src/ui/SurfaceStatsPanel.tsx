@@ -1,5 +1,6 @@
 import { Col, Row, Space, Statistic, Tag, Typography } from 'antd'
-import { DEFAULT_MATERIAL } from '../core/material'
+import { furtherLayer } from '../core/material'
+import { useAppStore } from '../state/store'
 import { madBand, madBands, type MadBand, type SurfaceStats } from '../core/mesh/stats'
 import { useT } from '../i18n'
 
@@ -18,9 +19,10 @@ const fmt = (value: number): string => value.toFixed(4)
  */
 export function SurfaceStatsPanel({ stats }: { stats: SurfaceStats }) {
   const t = useT()
-  const material = DEFAULT_MATERIAL
-  const bands = madBands(material.ts)
-  const band = madBand(stats.mad, material.ts)
+  const material = useAppStore((state) => state.material)
+  const ts = furtherLayer(material)
+  const bands = madBands(ts)
+  const band = madBand(stats.mad, ts)
   const rows: Array<{ key: MadBand; range: string }> = [
     { key: 'flat', range: `≤ ${fmt(bands.flatMax)}` },
     { key: 'mild', range: `${fmt(bands.flatMax)} … ${fmt(bands.mildMax)}` },
@@ -50,7 +52,7 @@ export function SurfaceStatsPanel({ stats }: { stats: SurfaceStats }) {
         <Typography.Text type="secondary">
           {t('stats.mad.value', {
             mad: fmt(stats.mad),
-            layers: (stats.mad / material.ts).toFixed(2),
+            layers: (stats.mad / ts).toFixed(2),
           })}
         </Typography.Text>
       </Space>
@@ -91,7 +93,7 @@ export function SurfaceStatsPanel({ stats }: { stats: SurfaceStats }) {
         <br />
         {t('stats.median.explain')}
         <br />
-        {t('stats.bands.note', { ts: material.ts.toFixed(3) })}
+        {t('stats.bands.note', { ts: ts.toFixed(3) })}
         <br />
         {t('stats.sampling')}
       </Typography.Paragraph>

@@ -48,6 +48,8 @@ export function PlanTab() {
   const pending = useAppStore((state) => state.pending)
   const material = useAppStore((state) => state.material)
   const setMaterial = useAppStore((state) => state.setMaterial)
+  const rounding = useAppStore((state) => state.rounding)
+  const setRounding = useAppStore((state) => state.setRounding)
 
   const [tapeWidth, setTapeWidth] = useState(20)
   const [plateW, setPlateW] = useState(235)
@@ -55,7 +57,6 @@ export function PlanTab() {
   const [percentile, setPercentile] = useState(0.85)
   const [sigma, setSigma] = useState(22)
   const [maxLayers, setMaxLayers] = useState(6)
-  const [rounding, setRounding] = useState<Rounding>('floor')
 
   const surface = useMemo(() => (mesh?.bounds ? createSurface(mesh) : null), [mesh])
 
@@ -205,7 +206,8 @@ export function PlanTab() {
                 step={0.005}
                 disabled={!material.calibrated}
                 value={material.ts}
-                onChange={(value) => value && setMaterial({ ...material, ts: value })}
+                placeholder="—"
+                onChange={(value) => setMaterial({ ...material, ts: value === null ? null : value })}
                 style={{ width: '100%' }}
               />
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -240,7 +242,11 @@ export function PlanTab() {
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 {t('plan.material.note', { deadband: fmt(deadband, 3) })}
                 <br />
-                {material.calibrated ? t('plan.material.measured') : t('plan.material.fallback')}
+                {material.calibrated
+                  ? material.ts === null
+                    ? t('plan.material.tsMissing')
+                    : t('plan.material.measured')
+                  : t('plan.material.fallback')}
                 <br />
                 {t('plan.material.layers')}
                 <br />

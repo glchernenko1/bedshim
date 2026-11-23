@@ -102,17 +102,22 @@ bounds are flagged `unprobed` and default to **no tape**.
 
 ## 2. Conventions — the dangerous part
 
-Three conventions, if wrong, produce a plan that is *worse than doing nothing*
+Two conventions, if wrong, produce a plan that is *worse than doing nothing*
 (it doubles the error). The app must not plan until the user confirms them.
 
 | Convention | Value | Risk |
 |---|---|---|
 | Row order | row 0 of `points` = `min_y` | plan flipped in Y |
-| Sign | `meshSign: 'high' \| 'low'` — does a positive mesh value mean the plate is high (closer to nozzle) or low? **Klipper stores the probe trigger height, so a positive value means high**; `'low'` exists only for exports whose sign was inverted. | plan inverted |
 | View | `top` (plate installed, looking down) vs `bottom` (plate flipped, working on the underside) | plan mirrored |
 
-Implement all three as explicit settings (`flipY`, `flipX`, `meshSign`, `view`)
-and gate planning behind confirmation.
+**The sign is not a setting.** Klipper stores the probe trigger height, so a
+positive mesh value always means the plate is closer to the nozzle ("high").
+A mesh whose export inverted the sign must be fixed before it is imported; the
+app never plans an inverted mesh. `plan()` keeps an internal `meshSign` option
+for tests and foreign imports, but the UI always uses `'high'`.
+
+Implement `flipY`, `flipX` and `view` as settings and gate planning behind
+confirmation.
 
 ### 2.1 Verification ritual (first-run wizard, mandatory)
 
@@ -123,11 +128,12 @@ and gate planning behind confirmation.
    probes** — that masks the change.
 3. Compare old and new mesh: the cell over the shim must change by ≈ 0.2 mm.
 4. If the magnitude appears at the **back-left** → toggle `flipY`.
-5. If the value **decreased** → toggle `meshSign`.
+5. If the value **decreased**, the export inverted the sign: fix the mesh at the
+   source and re-import. The app does not offer a sign toggle.
 6. Persist the confirmed convention in the project.
 
-The app shows the three settings, the reasoning, and a "confirmed" checkbox. The
-plan view is disabled until it is checked.
+The app shows the settings, the reasoning, and a "confirmed" checkbox. The plan
+view is disabled until it is checked.
 
 ### 2.2 Two views
 

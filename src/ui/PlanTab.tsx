@@ -19,7 +19,7 @@ import {
 import { buildGrid, type GridView } from '../core/grid'
 import { deadbandOf } from '../core/material'
 import { createSurface } from '../core/mesh/interpolate'
-import { plan, type MeshSign, type Rounding } from '../core/plan'
+import { plan, type Rounding } from '../core/plan'
 import { bedMeshSnippet, idealProbeCount, probeAdvice, probeEstimate } from '../core/probe'
 import { useT } from '../i18n'
 import { useAppStore } from '../state/store'
@@ -48,7 +48,6 @@ export function PlanTab() {
   const [percentile, setPercentile] = useState(0.85)
   const [maxLayers, setMaxLayers] = useState(6)
   const [rounding, setRounding] = useState<Rounding>('floor')
-  const [sign, setSign] = useState<MeshSign>('high')
   const [view, setView] = useState<GridView>('top')
   const [confirmed, setConfirmed] = useState(false)
 
@@ -75,9 +74,8 @@ export function PlanTab() {
       referencePercentile: percentile,
       rounding,
       maxLayers,
-      meshSign: sign,
     })
-  }, [surface, grid, confirmed, material, percentile, rounding, maxLayers, sign])
+  }, [surface, grid, confirmed, material, percentile, rounding, maxLayers])
 
   const probeRows = useMemo(() => {
     if (!mesh?.bounds) return []
@@ -206,18 +204,6 @@ export function PlanTab() {
               </Typography.Text>
             </Col>
             <Col xs={24} sm={12} md={8}>
-              <Typography.Text type="secondary">{t('plan.field.sign')}</Typography.Text>
-              <Segmented<MeshSign>
-                block
-                value={sign}
-                onChange={(value) => setSign(value)}
-                options={[
-                  { label: t('plan.sign.low'), value: 'low' },
-                  { label: t('plan.sign.high'), value: 'high' },
-                ]}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8}>
               <Typography.Text type="secondary">{t('plan.field.view')}</Typography.Text>
               <Segmented<GridView>
                 block
@@ -246,6 +232,16 @@ export function PlanTab() {
               </Typography.Text>
             </Col>
           </Row>
+
+          <Alert
+            type="info"
+            showIcon
+            title={t('plan.rounding.first.title')}
+            description={t('plan.rounding.first.body')}
+          />
+          {rounding === 'round' && !material.calibrated && (
+            <Alert type="warning" showIcon title={t('plan.rounding.overshoot.title')} description={t('plan.rounding.overshoot.body')} />
+          )}
 
           <Divider style={{ margin: '4px 0' }} />
 

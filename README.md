@@ -28,6 +28,9 @@ npm run cli -- parse fixtures/neptune4-mesh.cfg
 | P2 grid+plan | done — `buildGrid` 10×10, reference + quantization, golden plan, probe-count advice |
 | P3–P6 | not started |
 
+Decisions, deviations from the first spec draft and the current numbers live in
+[`STATUS.md`](STATUS.md).
+
 `src/core/` is headless: no React, no DOM, no `window`. Every user-visible string
 it produces is a message code translated through `src/i18n`.
 

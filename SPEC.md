@@ -72,7 +72,10 @@ effectiveLift(x,y) = gaussianBlur(tapeField(x,y), sigma)
 
 `sigma` (`sheetStiffness`, default **22 mm**, range 8–60) models this. Never plan
 or report results without applying it. This is why shims are **blobs**, not
-per-node corrections, and why the planner smooths the target before quantizing.
+per-node corrections, and why the forward model applies σ to the tape field
+before reporting residuals. Pre-smoothing the target before quantisation is
+optional (`smoothTarget`, off by default): it silently removes tape, and §4 puts
+the blur in the prediction step.
 
 ### 1.3 Compression
 
@@ -145,7 +148,11 @@ buildGrid(opts: {
   plate: { w: number; h: number };         // PEI plate, mm
   meshBounds: { minX: number; maxX: number; minY: number; maxY: number };
   tapeWidth: number;                        // w, mm
-}): { cells: Cell[]; cols: number; rows: number }
+  meshXCount: number;                       // for the spacing warnings
+  meshYCount: number;                       // row spacing = (maxY-minY)/(yCount-1)
+}): { cells: Cell[]; cols: number; rows: number; tapeWidth: number;
+      rowSpacing: number; meshBounds: MeshBounds; plate: { w: number; h: number };
+      warnings: CoreMessage[] }
 
 type Cell = {
   id: string;          // "A1"
@@ -176,7 +183,9 @@ Warn the user when:
 - `tapeWidth < 0.6 * meshSpacing` → "cells are finer than the measurements;
   between nodes the plan is invention";
 - `tapeWidth > 2.5 * meshSpacing` → "too few cells, the shape is coarse";
-- `plate.w % tapeWidth != 0` → "partial cells at the edge".
+- `plate.w % tapeWidth != 0` **and the grid reaches the plate edge** → "partial
+  cells at the edge" (with the count; a non-multiple is harmless while cells stay
+  away from the edge).
 
 ---
 
@@ -376,14 +385,16 @@ The app suggests; the user edits `printer.cfg`.
 ```ts
 plan(opts: {
   surface: Surface;
-  grid: Grid;
-  material: { nominal: number; t1: number; ts: number; calibrated: boolean };
-  referencePercentile: number;   // 0..1, default 0.85
-  deadband: number;              // default 0.4 * ts
-  sigma: number;                 // default 22
-  rounding: 'floor' | 'round';   // default 'floor' when !calibrated, else 'round'
-  maxLayers: number;             // default 6
-  plate: { w: number; h: number };
+  grid: Grid;                       // carries plate, bounds and cell rectangles
+  material: Material;               // nominal, t1, ts, calibrated
+  referencePercentile?: number;     // 0..1, default 0.85
+  deadband?: number;                // default 0.4 * ts
+  sigma?: number;                   // default 22, used only with smoothTarget
+  smoothTarget?: boolean;           // default false (§1.2 note)
+  rounding?: 'floor' | 'round';     // default 'floor' when !calibrated, else 'round'
+  maxLayers?: number;               // default 6
+  cellSamples?: number;             // default 16 (≥ 8 per §5.3)
+  meshSign?: 'high' | 'low';        // internal; the app always uses 'high'
 }): Plan;
 ```
 
@@ -410,8 +421,9 @@ choose the integer `n` minimizing `|lift(n) - T|`, preferring the smaller `n` on
 ties (`fixture: t1 = 0.03, ts = 0.03`). Apply `deadband`: if `T < deadband` then
 `n = 0`. Clamp to `maxLayers`.
 
-`rounding: 'floor'` (default while the material is uncalibrated) biases one step
-down — deliberate undershoot, recoverable in iteration 2.
+`rounding: 'floor'` (default while the material is uncalibrated) never overshoots:
+it takes the largest `n` whose `lift(n)` is still ≤ `T`. That is the deliberate
+undershoot, recoverable in iteration 2.
 
 ### 6.4 Complexity budget (must be visible)
 
@@ -607,8 +619,10 @@ src/
     mesh/parse.ts
     mesh/interpolate.ts
     mesh/stats.ts       // min/max/Δ, mean, median, MAD of the surface
+    material.ts         // nominal, t1, ts, lift(n), deadband
     grid.ts             // buildGrid — single source of truth
-    plan.ts             // reference, quantize, deadband
+    plan.ts             // reference, quantize, deadband, peel-aware diff
+    probe.ts            // ideal probe count, time estimate, config snippet
     forward.ts          // blur, prediction, achievable
     strips.ts           // pieces, batches, instructions
     calibrate.ts        // detrend, fit, wizard state machine
@@ -746,7 +760,8 @@ trigger height, so positive = the plate is **high**, closer to the nozzle):
 
 Plan params: `tapeWidth = 20`, `t1 = ts = 0.03`, `meshSign = 'high'`,
 `referencePercentile = 0.85` (the default) → `ref = +0.0463`,
-`deadband = 0.4 * ts`, `sigma = 22`, `rounding = round`.
+`deadband = 0.4 * ts`, `rounding = round`; `sigma = 22` belongs to the forward
+model (P3).
 
 Expected `layers` (rows A..J front→back, cols 1..10 left→right):
 

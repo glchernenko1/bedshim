@@ -10,7 +10,21 @@ import { diffAgainstPhysical, plan, quantile, quantize, type PlanOptions } from 
 const material: Material = { nominal: 0.05, t1: 0.03, ts: 0.03, calibrated: true }
 const fixtureText = readFileSync(new URL('../../fixtures/neptune4-mesh.cfg', import.meta.url), 'utf8')
 
-const GOLDEN = [
+// Historical bilinear table from the first version of Appendix A.
+const GOLDEN_BICUBIC = [
+  [3, 2, 1, 0, 0, 0, 0, 0, 1, 2],
+  [3, 2, 1, 0, 0, 0, 0, 0, 1, 2],
+  [3, 2, 1, 1, 1, 0, 0, 0, 1, 2],
+  [2, 1, 0, 0, 0, 0, 0, 0, 1, 2],
+  [2, 2, 0, 0, 0, 0, 0, 0, 1, 2],
+  [3, 2, 1, 0, 1, 0, 0, 1, 1, 1],
+  [2, 1, 0, 0, 1, 0, 0, 1, 1, 2],
+  [1, 0, 0, 0, 0, 0, 0, 1, 1, 1],
+  [1, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+  [1, 0, 0, 0, 0, 0, 0, 1, 1, 1],
+]
+
+const HISTORICAL_BILINEAR = [
   [3, 2, 1, 0, 0, 0, 0, 0, 1, 2],
   [3, 2, 1, 0, 0, 0, 0, 0, 1, 2],
   [3, 2, 1, 1, 1, 0, 0, 0, 1, 2],
@@ -101,7 +115,7 @@ describe('plan — Appendix A golden', () => {
     // reference at q20 of the mesh values (our 82nd percentile of height).
     const { mesh } = parseMesh(fixtureText)
     const result = fixturePlan({ surface: bilinearSurface(mesh) })
-    expect(result.layers).toEqual(GOLDEN)
+    expect(result.layers).toEqual(HISTORICAL_BILINEAR)
     expect(result.stats.totalLayers).toBe(72)
     expect(result.stats.cellsWithTape).toBe(50)
     expect(result.stats.tapeLengthMM).toBe(1440)
@@ -109,20 +123,12 @@ describe('plan — Appendix A golden', () => {
     expect(result.reference).toBeLessThan(0.005)
   })
 
-  it('documents the single-cell difference of the Klipper bicubic surface', () => {
-    // Klipper's bicubic lowers E3 just under the deadband. This is the known,
-    // documented deviation: 99/100 cells and one layer less than Appendix A.
+  it('reproduces the bicubic golden matrix of Appendix A', () => {
     const result = fixturePlan()
-    let mismatches = 0
-    for (let row = 0; row < 10; row++) {
-      for (let col = 0; col < 10; col++) {
-        if (result.layers[row]![col] !== GOLDEN[row]![col]) mismatches++
-      }
-    }
-    expect(mismatches).toBe(1)
-    expect(result.layers[4]![2]).toBe(0) // E3
-    expect(GOLDEN[4]![2]).toBe(1)
+    expect(result.layers).toEqual(GOLDEN_BICUBIC)
+    expect(result.layers[4]![2]).toBe(0) // E3 sits under the deadband on the bicubic surface
     expect(result.stats.totalLayers).toBe(71)
+    expect(result.stats.cellsWithTape).toBe(49)
     expect(result.stats.tapeLengthMM).toBe(1420)
   })
 

@@ -662,9 +662,9 @@ the dictionary. Identifiers, comments and commit messages: English.
 |---|---|
 | P0 scaffold | `npm run dev` serves the app; `npm run test` green; `base: './'` verified by opening `dist/index.html` from disk via a static server |
 | P1 mesh | `fixtures/neptune4-mesh.cfg` (SAVE_CONFIG), `.block` and `.points` all parse to the same 11×11 matrix, cell-for-cell identical; malformed input gives a useful error; bicubic matches a hand-computed fixture at 5 sample points |
-| P2 grid+plan | `buildGrid` for tape 20 mm on the fixture yields 10×10 with ids `A1..J10`; plan reproduces the golden layer matrix in App. A; monotonic under repeated apply; the `probe_count` suggestion is derived from tape width (`20 mm → 11×11` for the fixture, `10 mm → 21×20`), always shown with estimated probe time, and never silently capped |
+| P2 grid+plan | `buildGrid` for tape 20 mm on the fixture yields 10×10 with ids `A1..J10`; plan reproduces the golden layer matrix in App. A; re-planning the same mesh is a no-op and peeling never goes below zero; the `probe_count` suggestion is derived from tape width (`20 mm → 11×11` for the fixture, `10 mm → 21×20`), always shown with estimated probe time, and never silently capped |
 | P3 forward | σ-blur prediction on a synthetic bowl leaves `achievable > 0.9`; a single-cell plan is reported as `achievable < 0.4` |
-| P4 strips | Fixture plan → 39 pieces / 1440 mm; batch list groups them; instruction text renders in EN and RU |
+| P4 strips | Fixture plan → 38 pieces / 1420 mm; batch list groups them; instruction text renders in EN and RU |
 | P5 STL | Manifold test passes; bounding box = plate; STL opens in the slicer without repair; printed sheet is 2–3 g |
 | P6 calibration | Synthetic t1/ts recovered within 5 % from a noisy mesh; two iterations converge; wizard state machine covered by tests |
 
@@ -741,13 +741,14 @@ Sheet statistics (computed over the 10×10 cell means, `positive = bed low`):
 
 | | |
 |---|---|
-| min / max cell mean | −0.0325 / +0.0850 |
+| min / max cell mean | −0.0336 / +0.0858 |
 | mean | +0.0157 |
-| q20 | −0.0044 |
+| q20 | −0.0045 |
 | full node range | −0.0475 … +0.1175 (0.165, dominated by one edge node) |
 
-Plan params: `tapeWidth = 20`, `t1 = ts = 0.03`, `referencePercentile` → `ref =
-q20 = −0.0044`, `deadband = 0.4 * ts`, `sigma = 22`, `rounding = round`.
+Plan params: `tapeWidth = 20`, `t1 = ts = 0.03`, `referencePercentile = 0.82`
+(quantile of plate height; equivalently q20 ≈ −0.0045 of the cell means),
+`deadband = 0.4 * ts`, `sigma = 22`, `rounding = round`.
 
 Expected `layers` (rows A..J front→back, cols 1..10 left→right):
 
@@ -756,7 +757,7 @@ A  3 2 1 0 0 0 0 0 1 2
 B  3 2 1 0 0 0 0 0 1 2
 C  3 2 1 1 1 0 0 0 1 2
 D  2 1 0 0 0 0 0 0 1 2
-E  2 2 1 0 0 0 0 0 1 2
+E  2 2 0 0 0 0 0 0 1 2
 F  3 2 1 0 1 0 0 1 1 1
 G  2 1 0 0 1 0 0 1 1 2
 H  1 0 0 0 0 0 0 1 1 1
@@ -764,14 +765,21 @@ I  1 0 0 0 0 0 0 0 1 1
 J  1 0 0 0 0 0 0 1 1 1
 ```
 
-Total layers 72, **39 pieces**, **1440 mm** of 20 mm tape. First rows of the cut
-list:
+Total layers 71, **38 pieces**, **1420 mm** of 20 mm tape.
+
+> **Regenerated (Nov 2026, owner-approved).** This table was re-baselined with the
+> Klipper-bicubic surface the app actually uses; the earlier bilinear table
+> (72 layers, 39 pieces, 1440 mm, cell E3 = 1) is kept in `plan.test.ts` as a
+> provenance test, so it is not lost.
+
+First rows of the cut list:
 
 ```
 Row A: L1 A1–A3 (60), L1 A9–A10 (40), L2 A1–A2 (40), L2 A10 (20), L3 A1 (20)
 Row B: L1 B1–B3 (60), L1 B9–B10 (40), L2 B1–B2 (40), L2 B10 (20), L3 B1 (20)
 Row C: L1 C1–C5 (100), L1 C9–C10 (40), L2 C1–C2 (40), L2 C10 (20), L3 C1 (20)
 Row D: L1 D1–D2 (40), L1 D9–D10 (40), L2 D1 (20), L2 D10 (20)
+Row E: L1 E1–E2 (40), L1 E9–E10 (40), L2 E1–E2 (40), L2 E10 (20)
 ```
 
 The shape — both X edges low, middle high — is real for this printer, and it is

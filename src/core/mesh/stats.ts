@@ -20,6 +20,37 @@ function medianOf(sorted: readonly number[]): number {
   return (sorted[middle - 1]! + sorted[middle]!) / 2
 }
 
+/** How the MAD compares with one tape layer: a plain-language severity. */
+export type MadBand = 'flat' | 'mild' | 'notable' | 'strong'
+
+export interface MadBands {
+  /** Below this the bed is flat enough that shimming is chasing noise. */
+  flatMax: number
+  mildMax: number
+  notableMax: number
+}
+
+/**
+ * Band edges in mm for a given effective layer `ts` (SPEC §1.3, §1.4).
+ * A quarter layer is below what a tape correction can express; the absolute
+ * floor of 0.005 mm is Klipper's best-case probe repeatability (§1.4).
+ */
+export function madBands(ts: number): MadBands {
+  const flatMax = Math.max(0.25 * ts, 0.005)
+  const mildMax = Math.max(ts, 2 * flatMax)
+  const notableMax = Math.max(2 * ts, 1.5 * mildMax)
+  return { flatMax, mildMax, notableMax }
+}
+
+export function madBand(mad: number, ts: number): MadBand {
+  const bands = madBands(ts)
+  if (mad <= bands.flatMax) return 'flat'
+  if (mad <= bands.mildMax) return 'mild'
+  if (mad <= bands.notableMax) return 'notable'
+  return 'strong'
+}
+
+
 /**
  * Samples the surface on a uniform grid inside the mesh bounds and summarises it.
  * The grid includes the bounds themselves, so min/max are the real extrema of

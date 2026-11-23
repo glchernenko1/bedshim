@@ -24,6 +24,18 @@ export const MESSAGE_CODES = [
   'surface.error.noBounds',
   'surface.notice.algoApproximated',
   'surface.notice.bilinearFallback',
+  // grid
+  'grid.warn.fineCells',
+  'grid.warn.coarseCells',
+  'grid.warn.partialCells',
+  // plan
+  'plan.notice.unprobed',
+  'plan.notice.clamped',
+  'plan.notice.inconsistent',
+  // probe recommendation
+  'probe.notice.overMeasuring',
+  'probe.notice.coarserThanTape',
+  'probe.warn.tooMany',
 ] as const
 
 export type MessageCode = (typeof MESSAGE_CODES)[number]

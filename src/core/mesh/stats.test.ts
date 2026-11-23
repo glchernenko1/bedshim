@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { createSurface } from './interpolate'
 import { parseMesh } from './parse'
-import { surfaceStats } from './stats'
+import { madBand, madBands, surfaceStats } from './stats'
 import type { Mesh } from './types'
 
 function mesh(points: number[][], algo: Mesh['algo'] = 'bilinear'): Mesh {
@@ -77,5 +77,35 @@ describe('surfaceStats', () => {
     // MAD is a median of quantised deviations, so it converges within a small
     // fraction of the range rather than exactly.
     expect(Math.abs(coarse.mad - fine.mad)).toBeLessThan(fine.delta * 0.02)
+  })
+})
+
+describe('madBand', () => {
+  it('derives the bands from one effective layer', () => {
+    const bands = madBands(0.03)
+    expect(bands.flatMax).toBeCloseTo(0.0075, 12)
+    expect(bands.mildMax).toBeCloseTo(0.03, 12)
+    expect(bands.notableMax).toBeCloseTo(0.06, 12)
+  })
+
+  it('keeps the bands ordered when the layer is thinner than probe noise', () => {
+    expect(madBands(0.004).flatMax).toBeCloseTo(0.005, 12)
+    expect(madBands(0.004).mildMax).toBeCloseTo(0.01, 12)
+    expect(madBands(0.004).notableMax).toBeCloseTo(0.015, 12)
+  })
+
+  it('classifies values on the documented edges', () => {
+    expect(madBand(0.004, 0.03)).toBe('flat')
+    expect(madBand(0.0075, 0.03)).toBe('flat')
+    expect(madBand(0.0076, 0.03)).toBe('mild')
+    expect(madBand(0.03, 0.03)).toBe('mild')
+    expect(madBand(0.031, 0.03)).toBe('notable')
+    expect(madBand(0.06, 0.03)).toBe('notable')
+    expect(madBand(0.0601, 0.03)).toBe('strong')
+  })
+
+  it('puts the reference fixture at "mild"', () => {
+    // MAD 0.0163 mm against ts = 0.03 mm.
+    expect(madBand(0.0163, 0.03)).toBe('mild')
   })
 })

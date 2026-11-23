@@ -25,7 +25,8 @@ npm run cli -- parse fixtures/neptune4-mesh.cfg
 | P0 scaffold | done — Vite/React 19/Ant 6 shell, i18n EN/RU, offline service-worker stub, CLI stub |
 | P1 mesh | done — three mesh shapes, Klipper-exact bicubic surface, fixture golden tests |
 | Mesh view | done — 2D heatmap, rotatable 3D surface (canvas, no WebGL), min/Δ/median/mean/MAD |
-| P2–P6 | not started |
+| P2 grid+plan | done — `buildGrid` 10×10, reference + quantization, golden plan, probe-count advice |
+| P3–P6 | not started |
 
 `src/core/` is headless: no React, no DOM, no `window`. Every user-visible string
 it produces is a message code translated through `src/i18n`.

@@ -1,21 +1,17 @@
 import { useMemo, useState } from 'react'
-import { Alert, Button, Card, Col, Descriptions, Input, Row, Space, Statistic, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Descriptions, Input, Space, Tag, Typography } from 'antd'
 import exampleMesh from '../../fixtures/neptune4-mesh.block?raw'
 import { CoreError } from '../core/errors'
 import { createSurface } from '../core/mesh/interpolate'
 import { parseMesh } from '../core/mesh/parse'
 import { surfaceStats } from '../core/mesh/stats'
-import type { Mesh, MeshProfileRef } from '../core/mesh/types'
 import type { MessageParams } from '../core/messages'
 import { useT } from '../i18n'
+import { useAppStore } from '../state/store'
 import { MeshView } from './MeshView'
+import { SurfaceStatsPanel } from './SurfaceStatsPanel'
 
 const { TextArea } = Input
-
-interface Parsed {
-  mesh: Mesh
-  profiles: MeshProfileRef[]
-}
 
 interface Failure {
   code: string
@@ -27,34 +23,38 @@ const format = (value: number): string => value.toFixed(4)
 
 export function MeshTab() {
   const t = useT()
-  const [text, setText] = useState('')
-  const [parsed, setParsed] = useState<Parsed | null>(null)
+  const text = useAppStore((state) => state.meshText)
+  const setText = useAppStore((state) => state.setMeshText)
+  const parsed = useAppStore((state) => state.mesh)
+  const profiles = useAppStore((state) => state.profiles)
+  const setMesh = useAppStore((state) => state.setMesh)
   const [failure, setFailure] = useState<Failure | null>(null)
 
   const runParse = (source: string) => {
     try {
-      setParsed(parseMesh(source))
+      const result = parseMesh(source)
+      setMesh(result.mesh, result.profiles)
       setFailure(null)
     } catch (error) {
       if (error instanceof CoreError) {
         setFailure({ code: error.code, params: error.params, line: error.line })
-        setParsed(null)
+        setMesh(null)
         return
       }
       throw error
     }
   }
 
-  const surface = useMemo(() => (parsed?.mesh.bounds ? createSurface(parsed.mesh) : null), [parsed])
+  const surface = useMemo(() => (parsed?.bounds ? createSurface(parsed) : null), [parsed])
   const stats = useMemo(() => (surface ? surfaceStats(surface) : null), [surface])
 
   const nodeRange = useMemo(() => {
     if (!parsed) return null
-    const values = parsed.mesh.points.flat()
+    const values = parsed.points.flat()
     return { min: Math.min(...values), max: Math.max(...values) }
   }, [parsed])
 
-  const mesh = parsed?.mesh
+  const mesh = parsed
 
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
@@ -89,7 +89,7 @@ export function MeshTab() {
             <Button
               onClick={() => {
                 setText('')
-                setParsed(null)
+                setMesh(null)
                 setFailure(null)
               }}
             >
@@ -208,9 +208,9 @@ export function MeshTab() {
               />
             ))}
 
-            {parsed && parsed.profiles.length > 1 && (
+            {profiles.length > 1 && (
               <Typography.Text type="secondary">
-                {t('mesh.profiles.value', { list: parsed.profiles.map((profile) => profile.name).join(', ') })}
+                {t('mesh.profiles.value', { list: profiles.map((profile) => profile.name).join(', ') })}
               </Typography.Text>
             )}
 
@@ -219,23 +219,7 @@ export function MeshTab() {
                 <Typography.Title level={5} style={{ margin: '8px 0 0' }}>
                   {t('stats.title')}
                 </Typography.Title>
-                <Row gutter={[12, 8]}>
-                  {[
-                    { key: 'stats.min', value: stats.min },
-                    { key: 'stats.median', value: stats.median },
-                    { key: 'stats.mean', value: stats.mean },
-                    { key: 'stats.max', value: stats.max },
-                    { key: 'stats.delta', value: stats.delta },
-                    { key: 'stats.mad', value: stats.mad },
-                  ].map((item) => (
-                    <Col key={item.key} xs={12} sm={8} md={8}>
-                      <Statistic title={t(item.key)} value={item.value} precision={4} />
-                    </Col>
-                  ))}
-                </Row>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {t('stats.note')}
-                </Typography.Text>
+                <SurfaceStatsPanel stats={stats} />
 
                 <Typography.Title level={5} style={{ margin: '8px 0 0' }}>
                   {t('heatmap.title')}

@@ -5,6 +5,7 @@ import ruRU from 'antd/locale/ru_RU'
 import { useLang, useT, type Lang } from './i18n'
 import { useAppStore } from './state/store'
 import { MeshTab } from './ui/MeshTab'
+import { PlanTab } from './ui/PlanTab'
 import { Placeholder } from './ui/Placeholder'
 
 export function App() {
@@ -48,17 +49,7 @@ export function App() {
               defaultActiveKey="mesh"
               items={[
                 { key: 'mesh', label: t('app.tab.mesh'), children: <MeshTab /> },
-                {
-                  key: 'plan',
-                  label: t('app.tab.plan'),
-                  children: (
-                    <Placeholder
-                      phase="P2–P4"
-                      titleKey="plan.placeholder.title"
-                      bodyKey="plan.placeholder.body"
-                    />
-                  ),
-                },
+                { key: 'plan', label: t('app.tab.plan'), children: <PlanTab /> },
                 {
                   key: 'lattice',
                   label: t('app.tab.lattice'),

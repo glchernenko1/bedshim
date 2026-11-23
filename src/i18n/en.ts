@@ -56,6 +56,25 @@ export const en: Record<string, string> = {
   'heatmap.hover': 'X {x} mm · Y {y} mm · {z} mm',
   'heatmap.aria': 'Bed mesh heatmap over {x} × {y} mm',
 
+  'mesh.view.2d': '2D',
+  'mesh.view.3d': '3D',
+  'mesh.view.reset': 'Reset view',
+  'mesh.view.zscale': 'Vertical scale',
+  'mesh.view.drag': 'Drag to rotate.',
+  'mesh.view.markers3d':
+    'Height is exaggerated; drag rotates the surface, the slider changes the exaggeration. The heavy line is the front edge.',
+  'mesh.view.aria': 'Rotatable 3D view of the bed surface over {x} × {y} mm',
+
+  'stats.title': 'Surface statistics',
+  'stats.min': 'min',
+  'stats.max': 'max',
+  'stats.mean': 'mean',
+  'stats.median': 'median',
+  'stats.delta': 'Δ max − min',
+  'stats.mad': 'median deviation (MAD)',
+  'stats.note':
+    'Computed on the interpolated surface inside the mesh bounds. MAD = median |z − median|: a robust spread that a single bad edge node cannot inflate.',
+
   // Core message codes (SPEC §12: generated warnings are translated too).
   'parse.error.empty': 'The text is empty.',
   'parse.error.noPoints': 'No bed mesh points found. Paste the [bed_mesh …] block or the bare numbers.',

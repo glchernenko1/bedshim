@@ -13,7 +13,7 @@
 | | |
 |---|---|
 | Product | Single-page web app, offline, no backend |
-| Stack | TypeScript + Vite + React + Ant Design 5 |
+| Stack | TypeScript + Vite + React 19 + Ant Design 6 |
 | Name | `bedshim` |
 | v1 output | STL lattice, 1:1 SVG plan, cut list, printable instructions |
 | UI language | EN + RU via dictionary, EN default, code/identifiers in English |
@@ -22,6 +22,11 @@
 tape width, layered shim planning, strip/cut optimization, forward-model
 prediction, lattice STL, calibration loop, material-thickness wizard, project
 save/load.
+
+> **Stack change (Nov 2026, approved by the owner).** React 18 + Ant Design 5 was
+> replaced by React 19 + Ant Design 6. Ant 6 is a year old (6.7.x) and is the
+> line that natively supports React 19. Everything else in this contract stands;
+> the dependency list in §11 keeps the same packages.
 
 **Out of scope (v1):** backend, accounts, cloud, telemetry, G-code generation,
 multi-material stacks, OrcaSlicer plugin, plotter/paper templates.
@@ -604,6 +609,7 @@ src/
   core/                 // headless: no React, no DOM, no Ant, no window
     mesh/parse.ts
     mesh/interpolate.ts
+    mesh/stats.ts       // min/max/Δ, mean, median, MAD of the surface
     grid.ts             // buildGrid — single source of truth
     plan.ts             // reference, quantize, deadband
     forward.ts          // blur, prediction, achievable
@@ -632,7 +638,9 @@ Rules:
   the STL — it proves the core is headless and is the base for the future Orca
   integration.
 - Ant Design only for the shell (form, table, sliders, alerts, tabs). The mesh
-  heatmap and grid are custom canvas.
+  heatmap, the rotatable 3D surface and the cell grid are custom canvas; the 3D
+  view is a canvas projection (no WebGL dependency) and is a view mode of the
+  same `Surface`, not new geometry.
 - Deps, all justified: `react`, `react-dom`, `antd`, `zustand`,
   `polygon-clipping`, `earcut`, `vite`, `vitest`. Nothing else without asking.
 - `vite.config.ts`: `base: './'`, PWA/service worker for offline.

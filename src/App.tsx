@@ -23,9 +23,9 @@ export function App() {
     >
       <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
         <div className="bedshim-shell">
-          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Space orientation="vertical" size={16} style={{ width: '100%' }}>
             <Space align="start" wrap style={{ width: '100%', justifyContent: 'space-between' }}>
-              <Space direction="vertical" size={0}>
+              <Space orientation="vertical" size={0}>
                 <Space align="center" size={8} wrap>
                   <Typography.Title level={3} style={{ margin: 0 }}>
                     {t('app.title')}

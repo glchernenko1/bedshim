@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
-import { Alert, Button, Card, Descriptions, Input, Space, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Col, Descriptions, Input, Row, Space, Statistic, Tag, Typography } from 'antd'
 import exampleMesh from '../../fixtures/neptune4-mesh.block?raw'
 import { CoreError } from '../core/errors'
 import { createSurface } from '../core/mesh/interpolate'
 import { parseMesh } from '../core/mesh/parse'
+import { surfaceStats } from '../core/mesh/stats'
 import type { Mesh, MeshProfileRef } from '../core/mesh/types'
 import type { MessageParams } from '../core/messages'
 import { useT } from '../i18n'
-import { MeshHeatmap } from './MeshHeatmap'
+import { MeshView } from './MeshView'
 
 const { TextArea } = Input
 
@@ -45,6 +46,7 @@ export function MeshTab() {
   }
 
   const surface = useMemo(() => (parsed?.mesh.bounds ? createSurface(parsed.mesh) : null), [parsed])
+  const stats = useMemo(() => (surface ? surfaceStats(surface) : null), [surface])
 
   const nodeRange = useMemo(() => {
     if (!parsed) return null
@@ -55,9 +57,9 @@ export function MeshTab() {
   const mesh = parsed?.mesh
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <Card title={t('mesh.paste.title')}>
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           <Typography.Text type="secondary">{t('mesh.paste.hint')}</Typography.Text>
           <Space size={8} wrap>
             <Tag>{t('mesh.bookmark.saveConfig')}</Tag>
@@ -101,9 +103,9 @@ export function MeshTab() {
         <Alert
           type="error"
           showIcon
-          message={t('mesh.error.title')}
+          title={t('mesh.error.title')}
           description={
-            <Space direction="vertical" size={2}>
+            <Space orientation="vertical" size={2}>
               <span>{t(failure.code, failure.params)}</span>
               {failure.line !== undefined && (
                 <Typography.Text type="secondary">{t('mesh.error.line', { line: failure.line })}</Typography.Text>
@@ -115,7 +117,7 @@ export function MeshTab() {
 
       {mesh && (
         <Card title={t('mesh.summary.title')}>
-          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Space orientation="vertical" size={12} style={{ width: '100%' }}>
             <Descriptions
               size="small"
               column={{ xs: 1, sm: 1, md: 2 }}
@@ -195,14 +197,14 @@ export function MeshTab() {
               ]}
             />
 
-            {!mesh.bounds && <Alert type="warning" showIcon message={t('mesh.bounds.missing')} />}
+            {!mesh.bounds && <Alert type="warning" showIcon title={t('mesh.bounds.missing')} />}
 
             {mesh.notices.map((notice, index) => (
               <Alert
                 key={`${notice.code}-${index}`}
                 type="info"
                 showIcon
-                message={t(notice.code, notice.params)}
+                title={t(notice.code, notice.params)}
               />
             ))}
 
@@ -212,12 +214,33 @@ export function MeshTab() {
               </Typography.Text>
             )}
 
-            {surface && (
+            {surface && stats && (
               <>
+                <Typography.Title level={5} style={{ margin: '8px 0 0' }}>
+                  {t('stats.title')}
+                </Typography.Title>
+                <Row gutter={[12, 8]}>
+                  {[
+                    { key: 'stats.min', value: stats.min },
+                    { key: 'stats.median', value: stats.median },
+                    { key: 'stats.mean', value: stats.mean },
+                    { key: 'stats.max', value: stats.max },
+                    { key: 'stats.delta', value: stats.delta },
+                    { key: 'stats.mad', value: stats.mad },
+                  ].map((item) => (
+                    <Col key={item.key} xs={12} sm={8} md={8}>
+                      <Statistic title={t(item.key)} value={item.value} precision={4} />
+                    </Col>
+                  ))}
+                </Row>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('stats.note')}
+                </Typography.Text>
+
                 <Typography.Title level={5} style={{ margin: '8px 0 0' }}>
                   {t('heatmap.title')}
                 </Typography.Title>
-                <MeshHeatmap surface={surface} />
+                <MeshView surface={surface} />
               </>
             )}
           </Space>

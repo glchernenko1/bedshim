@@ -3,7 +3,7 @@
 Turn a Klipper bed mesh into a Kapton-tape shim plan, a printable reference
 lattice (STL), and a closed calibration loop.
 
-Offline single-page app: TypeScript + Vite + React + Ant Design 5, no backend,
+Offline single-page app: TypeScript + Vite + React 19 + Ant Design 6, no backend,
 no CDN, relative asset paths (`base: './'`). `SPEC.md` is the contract; `PROMPT.md`
 is the kickoff brief.
 
@@ -22,8 +22,9 @@ npm run cli -- parse fixtures/neptune4-mesh.cfg
 
 | Phase | State |
 |---|---|
-| P0 scaffold | done — Vite/React/Ant shell, i18n EN/RU, offline service-worker stub, CLI stub |
+| P0 scaffold | done — Vite/React 19/Ant 6 shell, i18n EN/RU, offline service-worker stub, CLI stub |
 | P1 mesh | done — three mesh shapes, Klipper-exact bicubic surface, fixture golden tests |
+| Mesh view | done — 2D heatmap, rotatable 3D surface (canvas, no WebGL), min/Δ/median/mean/MAD |
 | P2–P6 | not started |
 
 `src/core/` is headless: no React, no DOM, no `window`. Every user-visible string

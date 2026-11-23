@@ -16,7 +16,7 @@ export function Placeholder({ phase, titleKey, bodyKey }: PlaceholderProps) {
         {t(titleKey)}
       </Typography.Title>
       <Typography.Paragraph>{t(bodyKey)}</Typography.Paragraph>
-      <Alert type="info" showIcon message={t('app.phase.title')} description={t('app.phase.body', { phase })} />
+      <Alert type="info" showIcon title={t('app.phase.title')} description={t('app.phase.body', { phase })} />
     </Card>
   )
 }

@@ -46,6 +46,7 @@ export const MESSAGE_CODES = [
   'calibrate.warn.negative',
   'calibrate.warn.inconclusive',
   'calibrate.warn.onlyTs',
+  'calibrate.warn.poorFit',
   'calibrate.notice.tsOnly',
 ] as const
 

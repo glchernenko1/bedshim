@@ -72,7 +72,7 @@ describe('test measurements (fixtures/test-after-pass*.cfg)', () => {
       grid,
       material: TRUE,
       referencePercentile: 0.85,
-      rounding: 'floor',
+      rounding: 'round',
       baseLayers: p1.layers,
     })
     let changes = 0
@@ -81,7 +81,7 @@ describe('test measurements (fixtures/test-after-pass*.cfg)', () => {
         if ((p1.layers[row]?.[col] ?? 0) !== (p2.layers[row]?.[col] ?? 0)) changes++
       }
     }
-    expect(changes).toBe(5)
+    expect(changes).toBe(65)
 
     const fit = fitMaterial({
       oldSurface: createSurface(m2),
@@ -90,6 +90,50 @@ describe('test measurements (fixtures/test-after-pass*.cfg)', () => {
       newLayers: p2.layers,
       grid,
       fixedT1: TRUE.t1,
+    })
+    expect(fit.t1).toBeCloseTo(TRUE.t1, 3)
+    expect(fit.ts).toBeCloseTo(TRUE_TS, 3)
+    expect(fit.r2).toBeGreaterThan(0.99)
+  })
+
+  it('refuses a plan that does not match the measurement', () => {
+    // The old pass-2 file was generated with floor; planning it with round gives
+    // different layers, and the fit must not silently invent a thickness.
+    const wrong = plan({
+      surface: createSurface(m2),
+      grid,
+      material: TRUE,
+      referencePercentile: 0.85,
+      rounding: 'floor',
+      baseLayers: p1.layers,
+    })
+    const fit = fitMaterial({
+      oldSurface: createSurface(m2),
+      newSurface: createSurface(m3),
+      oldLayers: p1.layers,
+      newLayers: wrong.layers,
+      grid,
+      fixedT1: TRUE.t1,
+    })
+    expect(fit.conclusive).toBe(false)
+    expect(fit.warnings.map((warning) => warning.code)).toContain('calibrate.warn.poorFit')
+  })
+
+  it('also fits the pair spanning both passes', () => {
+    const p2 = plan({
+      surface: createSurface(m2),
+      grid,
+      material: TRUE,
+      referencePercentile: 0.85,
+      rounding: 'round',
+      baseLayers: p1.layers,
+    })
+    const fit = fitMaterial({
+      oldSurface: createSurface(m1),
+      newSurface: createSurface(m3),
+      oldLayers: zero,
+      newLayers: p2.layers,
+      grid,
     })
     expect(fit.t1).toBeCloseTo(TRUE.t1, 3)
     expect(fit.ts).toBeCloseTo(TRUE_TS, 3)

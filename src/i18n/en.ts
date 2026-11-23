@@ -108,6 +108,7 @@ export const en: Record<string, string> = {
   'calibrate.warn.negative': 'The fit produced a non-positive thickness (t1 = {t1}, ts = {ts}). Usually the maps are swapped or the plan was not applied.',
   'calibrate.warn.inconclusive': 't1 = {t1} mm is not clearly above the noise ({noise} mm): use a larger area or more layers.',
   'calibrate.warn.onlyTs': 'Every cell already had tape, so only ts is measurable (ts = {ts} mm); the first-layer lift is unknown — measure it on a bare area first.',
+  'calibrate.warn.poorFit': 'The known layer states do not explain the measured difference (R² = {r2}, noise {noise} mm). Check that the plan settings and the applied layers are exactly what was on the bed; the fit is refused rather than guessed.',
   'calibrate.notice.tsOnly': 'Only ts was measurable (t1 = {t1} mm taken from the current material, ts = {ts} mm).',
   'probe.title': 'Probe count for this tape',
   'probe.hint': 'One probe per cell. Time is estimated at 2 s per point; the app never changes your printer config.',

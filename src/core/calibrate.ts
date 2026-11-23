@@ -210,7 +210,13 @@ export function fitMaterial(options: FitOptions): FitResult {
   if (!(t1 > 0) || !(ts > 0)) {
     warnings.push({ code: 'calibrate.warn.negative', params: { t1: t1.toFixed(4), ts: ts.toFixed(4) } })
   }
-  const conclusive = t1 > 0 && ts > 0 && t1 > 2 * noise
+  if (r2 < 0.9) {
+    warnings.push({
+      code: 'calibrate.warn.poorFit',
+      params: { r2: r2.toFixed(2), noise: noise.toFixed(4) },
+    })
+  }
+  const conclusive = t1 > 0 && ts > 0 && t1 > 2 * noise && r2 > 0.5
   if (!conclusive) {
     warnings.push({ code: 'calibrate.warn.inconclusive', params: { t1: t1.toFixed(4), noise: noise.toFixed(4) } })
   }

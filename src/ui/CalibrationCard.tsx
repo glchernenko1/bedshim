@@ -71,6 +71,7 @@ export function CalibrationCard() {
         oldLayers: previousLayers,
         newLayers: current.layers,
         grid,
+        fixedT1: material.calibrated ? material.t1 : undefined,
       }),
     )
   }

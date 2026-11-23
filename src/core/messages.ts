@@ -45,6 +45,8 @@ export const MESSAGE_CODES = [
   'calibrate.notice.singleParameter',
   'calibrate.warn.negative',
   'calibrate.warn.inconclusive',
+  'calibrate.warn.onlyTs',
+  'calibrate.notice.tsOnly',
 ] as const
 
 export type MessageCode = (typeof MESSAGE_CODES)[number]

@@ -39,3 +39,7 @@ it produces is a message code translated through `src/i18n`.
 
 `fixtures/neptune4-mesh.{cfg,block,points}` — the same Elegoo Neptune 4 11×11 mesh
 in three real-world shapes (SPEC Appendix A).
+
+`fixtures/test-after-pass1.cfg` and `test-after-pass2.cfg` — synthetic
+"after taping" meshes with a known material (t1 = 0.025, ts = 0.040), for trying
+the calibration loop in the UI. Steps: [`fixtures/TEST-MEASUREMENTS.md`](fixtures/TEST-MEASUREMENTS.md).

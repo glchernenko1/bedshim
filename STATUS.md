@@ -120,11 +120,15 @@ draft of the spec.
 ## Verification
 
 ```bash
-npm test           # 89 tests, node environment
+npm test           # 92 tests, node environment
 npm run typecheck  # tsc --noEmit
 npm run build      # dist/, offline reload verified in Chromium
 npm run cli -- parse fixtures/neptune4-mesh.cfg
 ```
+
+The calibration loop can be tried without a printer:
+`fixtures/TEST-MEASUREMENTS.md` with two synthetic after-taping meshes (known
+t1 = 0.025, ts = 0.040).
 
 Known issues: the bundle is 727 kB (235 kB gzip) with Vite's chunk-size warning —
 lazy tabs can fix it later; the service worker caches at runtime (no precache

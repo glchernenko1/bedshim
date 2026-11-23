@@ -14,6 +14,11 @@ export interface FitOptions {
   sigma?: number
   /** Subgrid per axis for the cell mean. Default 16. */
   cellSamples?: number
+  /**
+   * Known first-layer lift. Used when the two meshes differ only by further
+   * layers (every cell already had tape), where t1 is not identifiable.
+   */
+  fixedT1?: number
 }
 
 export interface FitResult {
@@ -28,6 +33,8 @@ export interface FitResult {
   counts: Array<{ delta: number; cells: number }>
   /** True when no cell had a 2+ layer change, so ts fell back to t1. */
   singleParameter: boolean
+  /** True when only ts was measurable and t1 was taken as given. */
+  tsOnly: boolean
   /** t1 is clearly above the noise. */
   conclusive: boolean
   warnings: CoreMessage[]
@@ -53,6 +60,7 @@ export function fitMaterial(options: FitOptions): FitResult {
     grid,
     sigma = 22,
     cellSamples: _cellSamples = 16,
+    fixedT1,
   } = options
 
   // Compare at the probe nodes: the measured delta there is a direct sample of
@@ -146,7 +154,7 @@ export function fitMaterial(options: FitOptions): FitResult {
     .map(([deltaLayers, cells]) => ({ delta: deltaLayers, cells }))
     .sort((a, b) => a.delta - b.delta)
 
-  if (s11 < 1e-12) {
+  if (s11 < 1e-12 && s22 < 1e-12) {
     warnings.push({ code: 'calibrate.error.noChanges' })
     return {
       t1: 0,
@@ -156,6 +164,7 @@ export function fitMaterial(options: FitOptions): FitResult {
       cells: grid.cells.length,
       counts,
       singleParameter: false,
+      tsOnly: false,
       conclusive: false,
       warnings,
     }
@@ -165,7 +174,18 @@ export function fitMaterial(options: FitOptions): FitResult {
   let t1: number
   let ts: number
   let singleParameter = false
-  if (Math.abs(determinant) < 1e-12 || s22 < 1e-12) {
+  let tsOnly = false
+  if (s11 < 1e-12) {
+    // Every cell already had tape: only the further-layer lift is observable.
+    tsOnly = true
+    t1 = fixedT1 ?? 0
+    ts = (y2 - t1 * s12) / s22
+    if (fixedT1 === undefined) {
+      warnings.push({ code: 'calibrate.warn.onlyTs', params: { ts: ts.toFixed(4) } })
+    } else {
+      warnings.push({ code: 'calibrate.notice.tsOnly', params: { t1: t1.toFixed(4), ts: ts.toFixed(4) } })
+    }
+  } else if (Math.abs(determinant) < 1e-12 || s22 < 1e-12) {
     // No cell changed by a second layer: only the first-layer lift is observable.
     t1 = y1 / s11
     ts = t1
@@ -203,6 +223,7 @@ export function fitMaterial(options: FitOptions): FitResult {
     cells: grid.cells.length,
     counts,
     singleParameter,
+    tsOnly,
     conclusive,
     warnings,
   }

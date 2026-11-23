@@ -92,6 +92,8 @@ export const en: Record<string, string> = {
   'calibrate.notice.singleParameter': 'No cell gained a second layer, so only t1 is measurable; ts is set equal to it.',
   'calibrate.warn.negative': 'The fit produced a non-positive thickness (t1 = {t1}, ts = {ts}). Usually the maps are swapped or the plan was not applied.',
   'calibrate.warn.inconclusive': 't1 = {t1} mm is not clearly above the noise ({noise} mm): use a larger area or more layers.',
+  'calibrate.warn.onlyTs': 'Every cell already had tape, so only ts is measurable (ts = {ts} mm); the first-layer lift is unknown — measure it on a bare area first.',
+  'calibrate.notice.tsOnly': 'Only ts was measurable (t1 = {t1} mm taken from the current material, ts = {ts} mm).',
   'probe.title': 'Probe count for this tape',
   'probe.hint': 'One probe per cell. Time is estimated at 2 s per point; the app never changes your printer config.',
   'probe.col.tape': 'Tape',

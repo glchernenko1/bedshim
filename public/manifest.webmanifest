@@ -1,0 +1,10 @@
+{
+  "name": "bedshim",
+  "short_name": "bedshim",
+  "description": "Klipper bed mesh to Kapton tape shim plan",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1677ff"
+}

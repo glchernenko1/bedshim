@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Plan } from '../core/plan'
-import { displayRect } from '../core/grid'
 import { useT } from '../i18n'
 
 const PADDING = 10
@@ -17,14 +16,7 @@ export function PlanGridCanvas({ plan }: { plan: Plan }) {
 
   const plate = plan.grid.plate
   const height = width > 0 ? Math.max(220, Math.min(520, Math.round((width * plate.h) / plate.w))) : 0
-  const displayBounds = plan.grid.view === 'top'
-    ? plan.grid.meshBounds
-    : {
-        minX: plate.w - plan.grid.meshBounds.maxX,
-        maxX: plate.w - plan.grid.meshBounds.minX,
-        minY: plan.grid.meshBounds.minY,
-        maxY: plan.grid.meshBounds.maxY,
-      }
+  const displayBounds = plan.grid.meshBounds
 
   useEffect(() => {
     const host = hostRef.current
@@ -63,11 +55,10 @@ export function PlanGridCanvas({ plan }: { plan: Plan }) {
     context.strokeRect(PADDING + 0.5, PADDING + 0.5, plotW - 1, plotH - 1)
 
     for (const cell of plan.cells) {
-      const rect = displayRect(cell, plan.grid)
-      const x = px(rect.x0)
-      const y = py(rect.y1)
-      const w = (rect.x1 - rect.x0) * sx
-      const h = (rect.y1 - rect.y0) * sy
+      const x = px(cell.x0)
+      const y = py(cell.y1)
+      const w = (cell.x1 - cell.x0) * sx
+      const h = (cell.y1 - cell.y0) * sy
       const color = LAYER_COLORS[Math.min(cell.layers, LAYER_COLORS.length - 1)]!
       context.fillStyle = cell.unprobed ? '#fafafa' : color
       context.fillRect(x, y, w, h)

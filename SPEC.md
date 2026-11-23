@@ -108,7 +108,6 @@ Two conventions, if wrong, produce a plan that is *worse than doing nothing*
 | Convention | Value | Risk |
 |---|---|---|
 | Row order | row 0 of `points` = `min_y` | plan flipped in Y |
-| View | `top` (plate installed, looking down) vs `bottom` (plate flipped, working on the underside) | plan mirrored |
 
 **The sign is not a setting.** Klipper stores the probe trigger height, so a
 positive mesh value always means the plate is closer to the nozzle ("high").
@@ -116,8 +115,7 @@ A mesh whose export inverted the sign must be fixed before it is imported; the
 app never plans an inverted mesh. `plan()` keeps an internal `meshSign` option
 for tests and foreign imports, but the UI always uses `'high'`.
 
-Implement `flipY`, `flipX` and `view` as settings and gate planning behind
-confirmation.
+Implement `flipY` and `flipX` as settings and gate planning behind confirmation.
 
 ### 2.1 Verification ritual (first-run wizard, mandatory)
 
@@ -133,18 +131,18 @@ confirmation.
 6. Persist the confirmed convention in the project.
 
 The app shows the settings, the reasoning, and a "confirmed" checkbox. The plan
-view is disabled until it is checked.
+screen is disabled until it is checked.
 
-### 2.2 Two views
+### 2.2 Working orientation
 
-Applying tape happens with the plate flipped, so the layout is mirrored. `view`
-is a first-class parameter of `buildGrid`, the plan renderer and the STL export:
+Tape is glued **on top of the magnetic sheet**, not on the spring-steel plate:
+the plate is lifted off, the tape goes on the bed, the plate is put back on top.
+The worker therefore looks down at the bed in the same orientation as the probed
+mesh. There is no flipped-plate step and no mirrored view; a mirrored plan would
+only invite mistakes.
 
-- `top` — plate installed, looking down (for reading the mesh).
-- `bottom` — plate flipped about X, looking at the underside (for applying tape).
-
-Both views label cells identically (`A1` is always the same physical cell); the
-label *position* on screen/print differs. Never make the user mentally mirror.
+Every renderer (plan, SVG, STL) uses one orientation: X to the right, Y to the
+back, the front edge at the bottom. Cell ids are never mirrored.
 
 ---
 
@@ -158,7 +156,6 @@ buildGrid(opts: {
   plate: { w: number; h: number };         // PEI plate, mm
   meshBounds: { minX: number; maxX: number; minY: number; maxY: number };
   tapeWidth: number;                        // w, mm
-  view: 'top' | 'bottom';
 }): { cells: Cell[]; cols: number; rows: number }
 
 type Cell = {
@@ -179,7 +176,7 @@ Rules:
   overhanging a 19 mm row by 1 mm is desirable (no gaps).
 - Grid origin = `(meshBounds.minX, meshBounds.minY)`.
 - Columns numbered `1..N` left→right, rows lettered `A, B, C…` front→back.
-- Cell ids are stable across views; only screen/print positions mirror.
+- Cell ids are stable; nothing is mirrored anywhere in the app.
 - `buildGrid` is the **single source of truth** for the planner, the STL and the
   SVG. Nothing else may compute cell rectangles.
 - Non-integer division of the plate leaves `partial` edge cells — flag them,
@@ -591,11 +588,9 @@ solid = extrude( plateOutline  −  cellHoles  −  glyphHoles )   // uniform he
 - A stroke font (polyline → variable-width rectangle union) covers `A..Z` and
   `0..9`; 6 mm glyph height. Union strokes with `polygon-clipping`, subtract from
   the plate.
-- Also cut: a `FRONT` marker + arrow, and a view caption (`TOP` / `BOTTOM`).
+- Also cut: a `FRONT` marker + arrow so the sheet cannot be flipped by mistake.
 - Units mm, Z up, bottom face at `z = 0`, no transforms.
-- Export **binary STL**. `view: 'bottom'` produces a separately generated,
-  mirrored-grid sheet whose labels still read upright — do not mirror the printed
-  geometry at render time, regenerate the grid with `view`.
+- Export **binary STL** in the single working orientation described in §2.2.
 
 Manifold acceptance (test, not eyeball): every edge shared by exactly 2
 triangles, volume > 0, bounding box equals the plate, triangle count reported.
@@ -603,7 +598,7 @@ triangles, volume > 0, bounding box equals the plate, triangle count reported.
 ### 10.2 1:1 SVG of the plan
 
 Same geometry as §10.1 (reuse `buildGrid`), no extrusion: cell borders, ids,
-outlined strips per level with a legend, view caption. Printable at 100 % on A4
+outlined strips per level with a legend, and a `FRONT` caption. Printable at 100 % on A4
 tiled sheets. Used as an under-plate template — mention that paper adds a uniform
 ~0.1 mm (absorbed by Z offset, but say it).
 

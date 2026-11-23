@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildGrid, displayRect, rowLabel } from './grid'
+import { buildGrid, rowLabel } from './grid'
 
 const bounds = { minX: 10, maxX: 210, minY: 21, maxY: 211 }
 
@@ -8,7 +8,6 @@ function fixtureGrid(overrides: Partial<Parameters<typeof buildGrid>[0]> = {}) {
     plate: { w: 235, h: 235 },
     meshBounds: bounds,
     tapeWidth: 20,
-    view: 'top',
     meshXCount: 11,
     meshYCount: 11,
     ...overrides,
@@ -62,14 +61,6 @@ describe('buildGrid', () => {
     expect(last.partial).toBe(true)
     expect(last.x1).toBe(215)
     expect(grid.cells[0]!.partial).toBe(false)
-  })
-
-  it('mirrors the display rect in the bottom view but keeps cell ids', () => {
-    const top = fixtureGrid()
-    const bottom = fixtureGrid({ view: 'bottom' })
-    expect(displayRect(top.cells[0]!, top)).toEqual({ x0: 10, x1: 30, y0: 21, y1: 40 })
-    expect(displayRect(bottom.cells[0]!, bottom)).toEqual({ x0: 205, x1: 225, y0: 21, y1: 40 })
-    expect(bottom.cells[0]!.id).toBe('A1')
   })
 
   it('warns when the tape is much finer or coarser than the mesh', () => {

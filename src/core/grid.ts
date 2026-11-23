@@ -1,10 +1,8 @@
 import type { CoreMessage } from './messages'
 import type { MeshBounds } from './mesh/types'
 
-export type GridView = 'top' | 'bottom'
-
 export interface Cell {
-  /** Stable identity across views: "A1" is the same physical cell in both. */
+  /** Stable identity: "A1" is always the same physical cell. */
   id: string
   label: string
   /** 0-based, 0 = left (min_x). */
@@ -25,7 +23,6 @@ export interface Grid {
   cells: Cell[]
   cols: number
   rows: number
-  view: GridView
   tapeWidth: number
   /** Y step = mesh row spacing, so rows land on probe rows (SPEC §3). */
   rowSpacing: number
@@ -38,7 +35,6 @@ export interface GridOptions {
   plate: { w: number; h: number }
   meshBounds: MeshBounds
   tapeWidth: number
-  view: GridView
   meshXCount: number
   meshYCount: number
 }
@@ -61,7 +57,7 @@ export function rowLabel(index: number): string {
  * the STL and the SVG (SPEC §3).
  */
 export function buildGrid(options: GridOptions): Grid {
-  const { plate, meshBounds, tapeWidth, view, meshXCount, meshYCount } = options
+  const { plate, meshBounds, tapeWidth, meshXCount, meshYCount } = options
   if (!(tapeWidth > 0)) throw new RangeError('tapeWidth must be > 0')
   const spanX = meshBounds.maxX - meshBounds.minX
   const spanY = meshBounds.maxY - meshBounds.minY
@@ -126,18 +122,5 @@ export function buildGrid(options: GridOptions): Grid {
     })
   }
 
-  return { cells, cols, rows, view, tapeWidth, rowSpacing, meshBounds, plate, warnings }
-}
-
-/**
- * Where a cell sits on the plan sheet. `top` keeps plate coordinates; `bottom`
- * mirrors X, because the plate is flipped to apply tape (SPEC §2.2). The id
- * travels with the cell, so the label still names the same physical cell.
- */
-export function displayRect(
-  cell: Pick<Cell, 'x0' | 'x1' | 'y0' | 'y1'>,
-  grid: Pick<Grid, 'view' | 'plate'>,
-): { x0: number; x1: number; y0: number; y1: number } {
-  if (grid.view === 'top') return { x0: cell.x0, x1: cell.x1, y0: cell.y0, y1: cell.y1 }
-  return { x0: grid.plate.w - cell.x1, x1: grid.plate.w - cell.x0, y0: cell.y0, y1: cell.y1 }
+  return { cells, cols, rows, tapeWidth, rowSpacing, meshBounds, plate, warnings }
 }

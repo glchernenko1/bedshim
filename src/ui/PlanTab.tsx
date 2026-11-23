@@ -16,7 +16,7 @@ import {
   Tag,
   Typography,
 } from 'antd'
-import { buildGrid, type GridView } from '../core/grid'
+import { buildGrid } from '../core/grid'
 import { deadbandOf } from '../core/material'
 import { createSurface } from '../core/mesh/interpolate'
 import { plan, type Rounding } from '../core/plan'
@@ -48,7 +48,6 @@ export function PlanTab() {
   const [percentile, setPercentile] = useState(0.85)
   const [maxLayers, setMaxLayers] = useState(6)
   const [rounding, setRounding] = useState<Rounding>('floor')
-  const [view, setView] = useState<GridView>('top')
   const [confirmed, setConfirmed] = useState(false)
 
   const surface = useMemo(() => (mesh?.bounds ? createSurface(mesh) : null), [mesh])
@@ -59,11 +58,10 @@ export function PlanTab() {
       plate: { w: plateW, h: plateH },
       meshBounds: mesh.bounds,
       tapeWidth,
-      view,
       meshXCount: mesh.xCount,
       meshYCount: mesh.yCount,
     })
-  }, [mesh, plateW, plateH, tapeWidth, view])
+  }, [mesh, plateW, plateH, tapeWidth])
 
   const result = useMemo(() => {
     if (!surface || !grid || !confirmed) return null
@@ -202,18 +200,6 @@ export function PlanTab() {
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 {t('plan.rounding.hint')}
               </Typography.Text>
-            </Col>
-            <Col xs={24} sm={12} md={8}>
-              <Typography.Text type="secondary">{t('plan.field.view')}</Typography.Text>
-              <Segmented<GridView>
-                block
-                value={view}
-                onChange={(value) => setView(value)}
-                options={[
-                  { label: t('plan.view.top'), value: 'top' },
-                  { label: t('plan.view.bottom'), value: 'bottom' },
-                ]}
-              />
             </Col>
             <Col xs={24} md={12}>
               <Typography.Text type="secondary">

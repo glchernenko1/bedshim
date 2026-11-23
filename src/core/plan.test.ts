@@ -31,7 +31,6 @@ function fixturePlan(overrides: Partial<PlanOptions> = {}) {
     plate: { w: 235, h: 235 },
     meshBounds: mesh.bounds!,
     tapeWidth: 20,
-    view: 'top',
     meshXCount: mesh.xCount,
     meshYCount: mesh.yCount,
   })
@@ -126,7 +125,6 @@ describe('plan — physics guards', () => {
       plate: { w: 235, h: 235 },
       meshBounds: mesh.bounds!,
       tapeWidth: 15,
-      view: 'top',
       meshXCount: mesh.xCount,
       meshYCount: mesh.yCount,
     })
@@ -157,7 +155,7 @@ describe('plan — physics guards', () => {
       ignoredKeys: [],
       notices: [],
     }
-    const grid = buildGrid({ plate: { w: 100, h: 100 }, meshBounds: flat.bounds!, tapeWidth: 20, view: 'top', meshXCount: 3, meshYCount: 3 })
+    const grid = buildGrid({ plate: { w: 100, h: 100 }, meshBounds: flat.bounds!, tapeWidth: 20, meshXCount: 3, meshYCount: 3 })
     const result = plan({ surface: createSurface(flat), grid, material, rounding: 'round' })
     expect(result.stats.totalLayers).toBe(0)
   })

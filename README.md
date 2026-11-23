@@ -27,7 +27,9 @@ npm run cli -- parse fixtures/neptune4-mesh.cfg
 | Mesh view | done — 2D heatmap, rotatable 3D surface (canvas, no WebGL), min/Δ/median/mean/MAD |
 | P2 grid+plan | done — `buildGrid` 10×10, reference + quantization, golden plan, probe-count advice |
 | P3 forward | done — σ-blur prediction, residual map, achievable/delivered, mesh export |
-| P4–P6 | in progress |
+| P4 strips | not started |
+| P5 STL + SVG | not started |
+| P6 calibration | first half done — measurements, t1/ts fit, auto-round; wizard and project JSON remain |
 
 Decisions, deviations from the first spec draft and the current numbers live in
 [`STATUS.md`](STATUS.md).

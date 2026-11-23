@@ -102,36 +102,25 @@ bounds are flagged `unprobed` and default to **no tape**.
 
 ## 2. Conventions — the dangerous part
 
-Two conventions, if wrong, produce a plan that is *worse than doing nothing*
-(it doubles the error). The app must not plan until the user confirms them.
+The saved mesh has a fixed order and sign, and getting either wrong produces a
+plan that is *worse than doing nothing* (it doubles the error). The parser
+follows Klipper as a fact, not as a setting:
 
-| Convention | Value | Risk |
-|---|---|---|
-| Row order | row 0 of `points` = `min_y` | plan flipped in Y |
+- row 0 of `points` = `min_y` (front);
+- a positive value means the plate is closer to the nozzle ("high").
 
-**The sign is not a setting.** Klipper stores the probe trigger height, so a
-positive mesh value always means the plate is closer to the nozzle ("high").
-A mesh whose export inverted the sign must be fixed before it is imported; the
-app never plans an inverted mesh. `plan()` keeps an internal `meshSign` option
-for tests and foreign imports, but the UI always uses `'high'`.
+**There is no sign or view setting.** A mesh whose export inverted the sign must
+be fixed before it is imported; the app never plans an inverted mesh. `plan()`
+keeps an internal `meshSign` option for tests and foreign imports, but the UI
+always uses `'high'`. Nothing blocks planning: the format is known.
 
-Implement `flipY` and `flipX` as settings and gate planning behind confirmation.
+### 2.1 Sanity check (optional, not a gate)
 
-### 2.1 Verification ritual (first-run wizard, mandatory)
-
-1. Ask the user to place a **0.2 mm shim over a large area (~60×60 mm) at the
-   front-left** of the bed, under the plate.
-2. Ask for a fresh mesh at printing temperature (`BED_MESH_CALIBRATE`).
-   **Do not run `PROBE_CALIBRATE` / `Z_OFFSET_APPLY_PROBE` between the two
-   probes** — that masks the change.
-3. Compare old and new mesh: the cell over the shim must change by ≈ 0.2 mm.
-4. If the magnitude appears at the **back-left** → toggle `flipY`.
-5. If the value **decreased**, the export inverted the sign: fix the mesh at the
-   source and re-import. The app does not offer a sign toggle.
-6. Persist the confirmed convention in the project.
-
-The app shows the settings, the reasoning, and a "confirmed" checkbox. The plan
-screen is disabled until it is checked.
+If a plan ever looks mirrored or inverted, check it with a shim: put 0.2 mm over
+~60×60 mm at the front-left, re-probe without `PROBE_CALIBRATE`, and compare.
+The cell over the shim must change by ≈ 0.2 mm and the value must **increase**.
+A change at the back means the rows were flipped; a decrease means the export
+inverted the sign. Fix the source file and re-import.
 
 ### 2.2 Working orientation
 

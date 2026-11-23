@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import {
   Alert,
   Card,
-  Checkbox,
   Col,
   Divider,
   InputNumber,
@@ -48,7 +47,6 @@ export function PlanTab() {
   const [percentile, setPercentile] = useState(0.85)
   const [maxLayers, setMaxLayers] = useState(6)
   const [rounding, setRounding] = useState<Rounding>('floor')
-  const [confirmed, setConfirmed] = useState(false)
 
   const surface = useMemo(() => (mesh?.bounds ? createSurface(mesh) : null), [mesh])
 
@@ -64,7 +62,7 @@ export function PlanTab() {
   }, [mesh, plateW, plateH, tapeWidth])
 
   const result = useMemo(() => {
-    if (!surface || !grid || !confirmed) return null
+    if (!surface || !grid) return null
     return plan({
       surface,
       grid,
@@ -73,7 +71,7 @@ export function PlanTab() {
       rounding,
       maxLayers,
     })
-  }, [surface, grid, confirmed, material, percentile, rounding, maxLayers])
+  }, [surface, grid, material, percentile, rounding, maxLayers])
 
   const probeRows = useMemo(() => {
     if (!mesh?.bounds) return []
@@ -231,15 +229,6 @@ export function PlanTab() {
 
           <Divider style={{ margin: '4px 0' }} />
 
-          <Alert
-            type={confirmed ? 'success' : 'warning'}
-            showIcon
-            title={confirmed ? t('plan.gate.done') : t('plan.gate.title')}
-            description={t('plan.gate.body')}
-          />
-          <Checkbox checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)}>
-            {t('plan.gate.check')}
-          </Checkbox>
         </Space>
       </Card>
 
@@ -321,11 +310,6 @@ export function PlanTab() {
         </>
       )}
 
-      {!confirmed && (
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          {t('plan.blocked')}
-        </Typography.Text>
-      )}
     </Space>
   )
 }

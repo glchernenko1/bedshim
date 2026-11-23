@@ -171,6 +171,9 @@ export function PlanTab() {
                 onChange={(value) => value && setMaterial({ ...material, t1: value })}
                 style={{ width: '100%' }}
               />
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('plan.field.t1.hint')}
+              </Typography.Text>
             </Col>
             <Col xs={12} sm={8} md={4}>
               <Typography.Text type="secondary">{t('plan.field.ts')}</Typography.Text>
@@ -183,6 +186,9 @@ export function PlanTab() {
                 onChange={(value) => value && setMaterial({ ...material, ts: value })}
                 style={{ width: '100%' }}
               />
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('plan.field.ts.hint')}
+              </Typography.Text>
             </Col>
             <Col xs={24} sm={12} md={8}>
               <Typography.Text type="secondary">{t('plan.field.rounding')}</Typography.Text>
@@ -215,6 +221,8 @@ export function PlanTab() {
                 {material.calibrated ? t('plan.material.measured') : t('plan.material.fallback')}
                 <br />
                 {t('plan.material.layers')}
+                <br />
+                {t('plan.material.auto')}
               </Typography.Text>
             </Col>
           </Row>

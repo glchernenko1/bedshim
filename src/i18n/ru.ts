@@ -35,6 +35,7 @@ export const ru: Dict = {
   'plan.rounding.round': 'round',
   'plan.field.percentile': 'Опорный перцентиль',
   'plan.material.note': 'Мёртвая зона {deadband} мм — меньше этого слой не ставится.',
+  'plan.material.layers': 'Первый слой обычно сжимается сильнее остальных: t1 < ts. Одна прокладка даёт t1, две — t1 + ts.',
   'plan.results.title': 'План',
   'plan.stat.ref': 'Опорный уровень',
   'plan.stat.layers': 'Слоёв',

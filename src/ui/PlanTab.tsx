@@ -213,6 +213,8 @@ export function PlanTab() {
                 {t('plan.material.note', { deadband: fmt(deadband, 3) })}
                 <br />
                 {material.calibrated ? t('plan.material.measured') : t('plan.material.fallback')}
+                <br />
+                {t('plan.material.layers')}
               </Typography.Text>
             </Col>
           </Row>

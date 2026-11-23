@@ -34,6 +34,7 @@ export const en: Record<string, string> = {
   'plan.rounding.round': 'round',
   'plan.field.percentile': 'Reference percentile',
   'plan.material.note': 'Deadband {deadband} mm — corrections below this get no layer.',
+  'plan.material.layers': 'The first layer usually compresses more than the rest: t1 < ts. One tape patch gives t1, two give t1 + ts.',
   'plan.results.title': 'Plan',
   'plan.stat.ref': 'Reference level',
   'plan.stat.layers': 'Layers',

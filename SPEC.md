@@ -48,12 +48,17 @@ test — none of it is cosmetic.
 
 Tape adds height; it can never subtract. Therefore:
 
-- The reference plane must be a **robust high value** (see §6.2), not the mean,
-  otherwise the plan demands negative thickness.
+- The reference plane must be a **robust high level** in real height (see §6.2),
+  not the mean, otherwise half the plate would need negative thickness, which
+  tape cannot do. "High" here is a physical height, not the sign of the stored
+  number: Klipper already stores a positive value for a plate that is closer to
+  the nozzle (§2).
 - Overshoot is unrecoverable (removing tape means peeling the whole stack in
   that cell). **Iteration 1 must deliberately undershoot.**
-- Corrections are monotonic across iterations: `layers[i+1] >= layers[i]` unless
-  the user explicitly resets.
+- Layers are physical, not monotonic plans: a later iteration may peel tape
+  that is really there (a previous overshoot), but the count never goes below
+  zero. The plan is compared with the physical layer matrix and the difference
+  is shown as `+n` add / `−n` peel before anything is applied.
 
 ### 1.2 Bridging (the plate does not follow small patches)
 
@@ -392,7 +397,9 @@ plan(opts: {
 
 ### 6.2 Reference level
 
-`ref = quantile(cellMean)`, default 85th percentile. Not `max` — one probe
+`ref = quantile(h)`, default 85th percentile, where `h` is the sign-normalised
+plate height (positive = closer to the nozzle; `h = −cellMean` when
+`meshSign === 'low'`). Not `max` — one probe
 artifact at the edge (there is one in the reference fixture: +0.1175 in the left
 edge) would otherwise lift the entire plate by 0.1 mm and waste tape.
 

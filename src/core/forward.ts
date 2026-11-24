@@ -58,6 +58,8 @@ export interface ForwardResult {
   delivered: number
   maxAbsResidual: number
   rmsResidual: number
+  /** RMS of residual around its mean, mm: the shape error a Z offset cannot remove. */
+  spreadResidual: number
   sigma: number
   deadband: number
   predictedMesh: ForwardMesh
@@ -141,6 +143,7 @@ export function predict(options: ForwardOptions): ForwardResult {
   let tapedCount = 0
   let maxAbs = 0
   let squareSum = 0
+  let residualSum = 0
 
   for (const cell of grid.cells) {
     const stats = cellStats(surface, cell, cellSamples)
@@ -160,6 +163,7 @@ export function predict(options: ForwardOptions): ForwardResult {
     }
     maxAbs = Math.max(maxAbs, Math.abs(cellResidual))
     squareSum += cellResidual * cellResidual
+    residualSum += cellResidual
     residual[cell.row]![cell.col] = cellResidual
     cells.push({
       id: cell.id,
@@ -192,6 +196,8 @@ export function predict(options: ForwardOptions): ForwardResult {
   // plan that fails exactly where it matters.
   const achievable = tapedCount > 0 ? okCount / tapedCount : 1
   const delivered = tapedCount > 0 ? deliveredCount / tapedCount : 1
+  const meanResidual = residualSum / Math.max(1, cells.length)
+  const variance = squareSum / Math.max(1, cells.length) - meanResidual * meanResidual
   const warnings: CoreMessage[] = []
   if (delivered < 0.6) {
     // The plate is not delivering the tape: this is a bridging problem.
@@ -213,6 +219,7 @@ export function predict(options: ForwardOptions): ForwardResult {
     delivered,
     maxAbsResidual: maxAbs,
     rmsResidual: Math.sqrt(squareSum / Math.max(1, cells.length)),
+    spreadResidual: Math.sqrt(Math.max(0, variance)),
     sigma,
     deadband,
     predictedMesh: { xCount, yCount, bounds, points },

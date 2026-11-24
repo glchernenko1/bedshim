@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fitMaterial } from './calibrate'
+import { fitBridging, fitMaterial } from './calibrate'
 import { buildGrid } from './grid'
 import type { Material } from './material'
 import { createSurface } from './mesh/interpolate'
@@ -176,5 +176,36 @@ describe('fitMaterial', () => {
     expect(fit.singleParameter).toBe(true)
     expect(fit.ts).toBe(fit.t1)
     expect(fit.t1).toBeCloseTo(trueMaterial.t1, 2)
+  })
+})
+
+describe('fitBridging', () => {
+  it('recovers the bridging width from the shape of the tape field', () => {
+    const layers = layerPattern()
+    const zero = Array.from({ length: 10 }, () => new Array<number>(10).fill(0))
+    const oldSurface = createSurface(flatMesh(0))
+    const newSurface = createSurface(meshFromField(layers, 30))
+    const result = fitBridging({ oldSurface, newSurface, oldLayers: zero, newLayers: layers, grid: grid() })
+    expect(result.identifiable).toBe(true)
+    expect(result.sigma).toBeGreaterThanOrEqual(28)
+    expect(result.sigma).toBeLessThanOrEqual(32)
+    expect(result.fit.t1).toBeCloseTo(trueMaterial.t1, 2)
+    expect(result.fit.ts).toBeCloseTo(TRUE_TS, 2)
+  })
+
+  it('keeps the fallback sigma when the pair carries no shape information', () => {
+    const layers = layerPattern()
+    const surface = createSurface(flatMesh(0))
+    const result = fitBridging({
+      oldSurface: surface,
+      newSurface: surface,
+      oldLayers: layers,
+      newLayers: layers,
+      grid: grid(),
+      fallbackSigma: 25,
+    })
+    expect(result.identifiable).toBe(false)
+    expect(result.sigma).toBe(25)
+    expect(result.fit.warnings.map((warning) => warning.code)).toContain('calibrate.warn.sigmaWeak')
   })
 })

@@ -22,6 +22,8 @@ export interface PlanCell {
   target: number
   layers: number
   unprobed: boolean
+  /** Unprobed but planned from the nearest edge value because the grid was extended. */
+  extrapolated: boolean
   partial: boolean
   /** range > 0.5 * ts: the plate averages this cell, so a single count is a compromise. */
   inconsistent: boolean
@@ -36,6 +38,7 @@ export interface PlanStats {
   tapeAreaMM2: number
   maxUsed: number
   unprobed: number
+  extrapolated: number
   inconsistent: number
   clamped: number
 }
@@ -264,7 +267,7 @@ export function plan(options: PlanOptions): Plan {
         Array.from({ length: grid.cols }, (_, col) => {
           const cell = grid.cells[row * grid.cols + col]!
           const needed = Math.max(0, reference - heightOf(means[row]![col]!, meshSign))
-          return cell.unprobed ? 0 : needed
+          return cell.unprobed && !grid.extendToPlate ? 0 : needed
         }),
       )
     : []
@@ -282,6 +285,7 @@ export function plan(options: PlanOptions): Plan {
   let tapeAreaMM2 = 0
   let maxUsed = 0
   let unprobed = 0
+  let extrapolated = 0
   let inconsistent = 0
   let clamped = 0
 
@@ -299,7 +303,8 @@ export function plan(options: PlanOptions): Plan {
       // The deadband belongs to what is still missing, not to the absolute stack.
       const wanted = needed < deadband ? base : wantedAbsolute
       const idealWanted = quantize(absolute, material, { deadband: 0, maxLayers: 64, rounding })
-      const layers = cell.unprobed ? 0 : wanted
+      const extrapolatedCell = cell.unprobed && grid.extendToPlate
+      const layers = cell.unprobed && !extrapolatedCell ? 0 : wanted
       const width = cell.x1 - cell.x0
       const cellHeight = cell.y1 - cell.y0
       totalLayers += layers
@@ -310,6 +315,7 @@ export function plan(options: PlanOptions): Plan {
       }
       maxUsed = Math.max(maxUsed, layers)
       if (cell.unprobed) unprobed++
+      if (extrapolatedCell) extrapolated++
       if (range > 0.5 * furtherLayer(material)) inconsistent++
       if (idealWanted > maxLayers) clamped++
       cells.push({
@@ -325,6 +331,7 @@ export function plan(options: PlanOptions): Plan {
         target: needed,
         layers,
         unprobed: cell.unprobed,
+        extrapolated: extrapolatedCell,
         partial: cell.partial,
         inconsistent: range > 0.5 * furtherLayer(material),
         clamped: idealWanted > maxLayers,
@@ -333,7 +340,8 @@ export function plan(options: PlanOptions): Plan {
   }
 
   const warnings: CoreMessage[] = []
-  if (unprobed > 0) warnings.push({ code: 'plan.notice.unprobed', params: { count: unprobed } })
+  if (unprobed > 0 && !grid.extendToPlate) warnings.push({ code: 'plan.notice.unprobed', params: { count: unprobed } })
+  if (extrapolated > 0) warnings.push({ code: 'plan.notice.extrapolated', params: { count: extrapolated } })
   if (clamped > 0) warnings.push({ code: 'plan.notice.clamped', params: { count: clamped, max: maxLayers } })
   if (inconsistent > 0) warnings.push({ code: 'plan.notice.inconsistent', params: { count: inconsistent } })
 
@@ -360,6 +368,7 @@ export function plan(options: PlanOptions): Plan {
       tapeAreaMM2,
       maxUsed,
       unprobed,
+      extrapolated,
       inconsistent,
       clamped,
     },

@@ -83,4 +83,33 @@ describe('buildGrid', () => {
   it('rejects a non-positive tape width', () => {
     expect(() => fixtureGrid({ tapeWidth: 0 })).toThrowError(RangeError)
   })
+
+  it('extends margin cells to the plate edges on request', () => {
+    const grid = fixtureGrid({ extendToPlate: true })
+    expect(grid.cols).toBe(13)
+    expect(grid.rows).toBe(14)
+    expect(grid.cells).toHaveLength(182)
+    expect(grid.cells[0]).toMatchObject({
+      id: 'A1',
+      x0: 0,
+      x1: 10,
+      y0: 0,
+      y1: 2,
+      unprobed: true,
+      partial: true,
+    })
+    expect(grid.cells[grid.cells.length - 1]).toMatchObject({
+      id: 'N13',
+      x0: 230,
+      x1: 235,
+      y0: 230,
+      y1: 235,
+      unprobed: true,
+      partial: true,
+    })
+    // The original measured cell at (10..30, 21..40) is still present, just relabelled.
+    expect(grid.cells.find((cell) => cell.x0 === 10 && cell.y0 === 21 && cell.x1 === 30 && cell.y1 === 40)?.id).toBe('C2')
+    expect(grid.cells.filter((cell) => cell.unprobed)).toHaveLength(82)
+    expect(grid.extendToPlate).toBe(true)
+  })
 })

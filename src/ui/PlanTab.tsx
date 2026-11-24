@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Col,
+  Collapse,
   Divider,
   InputNumber,
   Row,
@@ -17,17 +18,20 @@ import {
   Typography,
 } from 'antd'
 import { buildGrid } from '../core/grid'
-import { deadbandOf } from '../core/material'
+import { deadbandOf, furtherLayer } from '../core/material'
 import { createSurface } from '../core/mesh/interpolate'
-import { plan, type Rounding } from '../core/plan'
+import { diffAgainstPhysical, plan, type Rounding } from '../core/plan'
 import { predictPlan, predictedMeshBlock } from '../core/forward'
 import { bedMeshSnippet, idealProbeCount, probeAdvice, probeEstimate } from '../core/probe'
 import { useT } from '../i18n'
 import { useAppStore } from '../state/store'
 import { LayerLegend, PlanGridCanvas } from './PlanGridCanvas'
+import { PredictedRelief } from './PredictedRelief'
 import { ResidualMapCanvas } from './ResidualMapCanvas'
+import { StripsCard } from './StripsCard'
 
 type Verdict = 'coarse' | 'good' | 'fine' | 'slow'
+type MapMode = 'residual' | 'relief'
 
 function verdictOf(points: number): Verdict {
   if (points <= 25) return 'coarse'
@@ -50,13 +54,13 @@ export function PlanTab() {
   const setMaterial = useAppStore((state) => state.setMaterial)
   const rounding = useAppStore((state) => state.rounding)
   const setRounding = useAppStore((state) => state.setRounding)
+  const sigma = useAppStore((state) => state.sigma)
+  const setSigma = useAppStore((state) => state.setSigma)
 
-  const [tapeWidth, setTapeWidth] = useState(20)
-  const [plateW, setPlateW] = useState(235)
-  const [plateH, setPlateH] = useState(235)
-  const [percentile, setPercentile] = useState(0.85)
-  const [sigma, setSigma] = useState(22)
-  const [maxLayers, setMaxLayers] = useState(6)
+  const planSettings = useAppStore((state) => state.planSettings)
+  const setPlanSettings = useAppStore((state) => state.setPlanSettings)
+  const { tapeWidth, plateW, plateH, percentile, maxLayers, extendToPlate } = planSettings
+  const [mapMode, setMapMode] = useState<MapMode>('residual')
 
   const surface = useMemo(() => (mesh?.bounds ? createSurface(mesh) : null), [mesh])
 
@@ -68,8 +72,9 @@ export function PlanTab() {
       tapeWidth,
       meshXCount: mesh.xCount,
       meshYCount: mesh.yCount,
+      extendToPlate,
     })
-  }, [mesh, plateW, plateH, tapeWidth])
+  }, [mesh, plateW, plateH, tapeWidth, extendToPlate])
 
   const baseLayers = useMemo(() => {
     if (!grid) return undefined
@@ -77,6 +82,12 @@ export function PlanTab() {
     if (stored && stored.length === grid.rows && (stored[0]?.length ?? 0) === grid.cols) return stored
     return Array.from({ length: grid.rows }, () => new Array<number>(grid.cols).fill(0))
   }, [grid, measurement])
+
+  const layersMismatch = Boolean(
+    measurement?.layers &&
+      grid &&
+      (measurement.layers.length !== grid.rows || (measurement.layers[0]?.length ?? 0) !== grid.cols),
+  )
 
   const result = useMemo(() => {
     if (!surface || !grid) return null
@@ -95,6 +106,38 @@ export function PlanTab() {
     if (!surface || !result) return null
     return predictPlan(result, surface, { sigma })
   }, [surface, result, sigma])
+
+  const diff = useMemo(() => {
+    if (!result) return null
+    const value = diffAgainstPhysical(result, baseLayers ?? [])
+    return { ...value, changed: value.cells.filter((cell) => cell.delta !== 0) }
+  }, [result, baseLayers])
+
+  // The predicted bed as an interpolated surface, so the relief mode can use
+  // the same 2D heatmap as the measured mesh (probe dots, hover, colour bar).
+  const relief = useMemo(() => {
+    if (!prediction || !mesh?.bounds) return null
+    const points = prediction.predictedMesh.points
+    const predictedSurface = createSurface({
+      ...mesh,
+      name: 'predicted',
+      points,
+      bounds: prediction.predictedMesh.bounds,
+      xCount: prediction.predictedMesh.xCount,
+      yCount: prediction.predictedMesh.yCount,
+    })
+    const flat = predictedSurface.sampled.flat()
+    const sorted = [...flat].sort((a, b) => a - b)
+    // Centre the colour on the median, not on zero: the common level is a Z
+    // offset, and colouring it would flood the whole plate with one hue.
+    const baseline = sorted[Math.floor(sorted.length / 2)] ?? 0
+    const maxAbs = Math.max(1e-6, ...flat.map((value) => Math.abs(value - baseline)))
+    return {
+      surface: predictedSurface,
+      baseline,
+      maxAbs,
+    }
+  }, [prediction, mesh])
 
   const probeRows = useMemo(() => {
     if (!mesh?.bounds) return []
@@ -139,19 +182,28 @@ export function PlanTab() {
           <Row gutter={[16, 12]}>
             <Col xs={12} sm={8} md={4}>
               <Typography.Text type="secondary">{t('plan.field.tape')}</Typography.Text>
-              <InputNumber min={5} max={100} step={5} value={tapeWidth} onChange={(value) => value && setTapeWidth(value)} style={{ width: '100%' }} />
+              <InputNumber min={5} max={100} step={5} value={tapeWidth} onChange={(value) => value && setPlanSettings({ tapeWidth: value })} style={{ width: '100%' }} />
             </Col>
             <Col xs={12} sm={8} md={4}>
               <Typography.Text type="secondary">{t('plan.field.plateW')}</Typography.Text>
-              <InputNumber min={50} max={500} value={plateW} onChange={(value) => value && setPlateW(value)} style={{ width: '100%' }} />
+              <InputNumber min={50} max={500} value={plateW} onChange={(value) => value && setPlanSettings({ plateW: value })} style={{ width: '100%' }} />
             </Col>
             <Col xs={12} sm={8} md={4}>
               <Typography.Text type="secondary">{t('plan.field.plateH')}</Typography.Text>
-              <InputNumber min={50} max={500} value={plateH} onChange={(value) => value && setPlateH(value)} style={{ width: '100%' }} />
+              <InputNumber min={50} max={500} value={plateH} onChange={(value) => value && setPlanSettings({ plateH: value })} style={{ width: '100%' }} />
             </Col>
             <Col xs={12} sm={8} md={4}>
               <Typography.Text type="secondary">{t('plan.field.maxLayers')}</Typography.Text>
-              <InputNumber min={1} max={12} value={maxLayers} onChange={(value) => value && setMaxLayers(value)} style={{ width: '100%' }} />
+              <InputNumber min={1} max={12} value={maxLayers} onChange={(value) => value && setPlanSettings({ maxLayers: value })} style={{ width: '100%' }} />
+            </Col>
+            <Col xs={12} sm={8} md={4}>
+              <Typography.Text type="secondary">{t('plan.field.extend')}</Typography.Text>
+              <div>
+                <Switch
+                  checked={extendToPlate}
+                  onChange={(checked) => setPlanSettings({ extendToPlate: checked })}
+                />
+              </div>
             </Col>
             <Col xs={12} sm={8} md={4}>
               <Typography.Text type="secondary">{t('plan.field.nominal')}</Typography.Text>
@@ -233,7 +285,7 @@ export function PlanTab() {
               <Typography.Text type="secondary">
                 {t('plan.field.percentile')} · {percentile.toFixed(2)}
               </Typography.Text>
-              <Slider min={0.5} max={0.95} step={0.01} value={percentile} onChange={(value) => setPercentile(Number(value))} />
+              <Slider min={0.5} max={0.95} step={0.01} value={percentile} onChange={(value) => setPlanSettings({ percentile: Number(value) })} />
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 {t('plan.field.percentile.hint')}
               </Typography.Text>
@@ -266,6 +318,14 @@ export function PlanTab() {
           {rounding === 'round' && !material.calibrated && (
             <Alert type="warning" showIcon title={t('plan.rounding.overshoot.title')} description={t('plan.rounding.overshoot.body')} />
           )}
+          {extendToPlate && (
+            <Alert
+              type="warning"
+              showIcon
+              title={t('plan.extend.warning.title')}
+              description={t('plan.extend.warning.body')}
+            />
+          )}
 
           <Divider style={{ margin: '4px 0' }} />
 
@@ -276,6 +336,14 @@ export function PlanTab() {
         <>
           <Card title={t('plan.results.title')}>
             <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+              {layersMismatch && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  title={t('plan.baseMismatch.title')}
+                  description={t('plan.baseMismatch.body')}
+                />
+              )}
               <Row gutter={[12, 8]}>
                 <Col xs={12} sm={8} md={4}>
                   <Statistic title={t('plan.stat.ref')} value={result.reference} precision={4} suffix="mm" />
@@ -301,6 +369,58 @@ export function PlanTab() {
                 {t('plan.aboveRef', { count: result.cells.filter((cell) => cell.mean > result.reference).length })}
               </Typography.Text>
 
+              {diff && (
+                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {t('plan.diff.hint')}
+                  </Typography.Text>
+                  <Row gutter={[12, 8]}>
+                    <Col xs={8} md={4}>
+                      <Statistic title={t('plan.diff.add')} value={diff.add} />
+                    </Col>
+                    <Col xs={8} md={4}>
+                      <Statistic title={t('plan.diff.peel')} value={diff.peel} />
+                    </Col>
+                    <Col xs={8} md={4}>
+                      <Statistic title={t('plan.diff.unchanged')} value={diff.unchanged} />
+                    </Col>
+                  </Row>
+                  {diff.changed.length === 0 ? (
+                    <Typography.Text type="secondary">{t('plan.diff.empty')}</Typography.Text>
+                  ) : (
+                    <Collapse
+                      size="small"
+                      items={[
+                        {
+                          key: 'cells',
+                          label: t('plan.diff.show', { count: diff.changed.length }),
+                          children: (
+                            <Table
+                              size="small"
+                              pagination={{ pageSize: 12, hideOnSinglePage: true }}
+                              scroll={{ x: 360 }}
+                              dataSource={diff.changed.map((cell) => ({ key: cell.id, ...cell }))}
+                              columns={[
+                                { title: t('plan.diff.table.cell'), dataIndex: 'id' },
+                                { title: t('plan.diff.table.now'), dataIndex: 'physical' },
+                                { title: t('plan.diff.table.plan'), dataIndex: 'planned' },
+                                {
+                                  title: t('plan.diff.table.delta'),
+                                  dataIndex: 'delta',
+                                  render: (value: number) => (
+                                    <Tag color={value > 0 ? 'blue' : 'orange'}>{value > 0 ? `+${value}` : value}</Tag>
+                                  ),
+                                },
+                              ]}
+                            />
+                          ),
+                        },
+                      ]}
+                    />
+                  )}
+                </Space>
+              )}
+
               {messages.map((message, index) => (
                 <Alert key={`${message.code}-${index}`} type="info" showIcon title={t(message.code, message.params)} />
               ))}
@@ -317,7 +437,7 @@ export function PlanTab() {
               </Space>
 
               <Space size={8} wrap>
-                <Button type="primary" onClick={() => applyPlan({ layers: result.layers, tapeWidth, plateW, plateH })}>
+                <Button type="primary" onClick={() => applyPlan({ layers: result.layers, tapeWidth, plateW, plateH, extendToPlate })}>
                   {t('plan.apply')}
                 </Button>
                 {pending && <Typography.Text type="secondary">{t('plan.applied.tag')}</Typography.Text>}
@@ -326,23 +446,31 @@ export function PlanTab() {
             </Space>
           </Card>
 
+          <StripsCard plan={result} />
+
           {prediction && (
             <Card title={t('plan.forward.title')}>
               <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                 <Row gutter={[12, 8]}>
-                  <Col xs={12} sm={8} md={6}>
+                  <Col xs={12} sm={8} md={4}>
                     <Statistic title={t('plan.forward.delivered')} value={prediction.delivered * 100} precision={0} suffix="%" />
                   </Col>
-                  <Col xs={12} sm={8} md={6}>
+                  <Col xs={12} sm={8} md={4}>
                     <Statistic title={t('plan.forward.achievable')} value={prediction.achievable * 100} precision={0} suffix="%" />
                   </Col>
-                  <Col xs={12} sm={8} md={6}>
+                  <Col xs={12} sm={8} md={4}>
+                    <Statistic title={t('plan.forward.spread')} value={prediction.spreadResidual} precision={4} suffix="mm" />
+                  </Col>
+                  <Col xs={12} sm={8} md={4}>
                     <Statistic title={t('plan.forward.max')} value={prediction.maxAbsResidual} precision={4} suffix="mm" />
                   </Col>
-                  <Col xs={12} sm={8} md={6}>
+                  <Col xs={12} sm={8} md={4}>
                     <Statistic title={t('plan.forward.rms')} value={prediction.rmsResidual} precision={4} suffix="mm" />
                   </Col>
                 </Row>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('plan.forward.spread.note')}
+                </Typography.Text>
 
                 <Space size={8} wrap>
                   <Tag
@@ -399,10 +527,32 @@ export function PlanTab() {
                 <Typography.Title level={5} style={{ margin: 0 }}>
                   {t('plan.forward.map.title')}
                 </Typography.Title>
+                <Segmented<MapMode>
+                  value={mapMode}
+                  onChange={(value) => setMapMode(value)}
+                  options={[
+                    { label: t('plan.forward.map.mode.residual'), value: 'residual' },
+                    { label: t('plan.forward.map.mode.relief'), value: 'relief' },
+                  ]}
+                />
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {t('plan.forward.map.hint')}
+                  {t(mapMode === 'residual' ? 'plan.forward.map.hint.residual' : 'plan.forward.map.hint.relief', {
+                    ref: Math.round(result.reference * 1000),
+                  })}
                 </Typography.Text>
-                <ResidualMapCanvas grid={grid} prediction={prediction} />
+                {mapMode === 'residual' || !relief ? (
+                  <ResidualMapCanvas
+                    grid={grid}
+                    prediction={prediction}
+                    floorBand={rounding === 'floor' ? furtherLayer(material) : 0}
+                  />
+                ) : (
+                  <PredictedRelief
+                    surface={relief.surface}
+                    baseline={relief.baseline}
+                    maxAbs={relief.maxAbs}
+                  />
+                )}
 
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   {t('plan.forward.export')}

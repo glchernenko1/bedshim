@@ -34,7 +34,16 @@ interface Hover {
  * Custom canvas heatmap (SPEC §11: Ant only for the shell).
  * Front (min_y) is drawn at the bottom, left (min_x) at the left — the `top` view.
  */
-export function MeshHeatmap({ surface, maxAbs }: { surface: Surface; maxAbs: number }) {
+export function MeshHeatmap({
+  surface,
+  maxAbs,
+  baseline = 0,
+}: {
+  surface: Surface
+  maxAbs: number
+  /** Value that maps to the neutral colour. Default 0 (the probe trigger plane). */
+  baseline?: number
+}) {
   const t = useT()
   const hostRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -83,7 +92,7 @@ export function MeshHeatmap({ surface, maxAbs }: { surface: Surface; maxAbs: num
       for (let col = 0; col < SAMPLES; col++) {
         const x = bounds.minX + ((col + 0.5) * spanX) / SAMPLES
         const value = surface.at(x, y)
-        context.fillStyle = colorFor(value, maxAbs)
+        context.fillStyle = colorFor(value - baseline, maxAbs)
         context.fillRect(PADDING + col * cellW, top, cellW + 0.5, cellH + 0.5)
       }
     }
@@ -105,7 +114,7 @@ export function MeshHeatmap({ surface, maxAbs }: { surface: Surface; maxAbs: num
 
     context.strokeStyle = 'rgba(0, 0, 0, 0.25)'
     context.strokeRect(PADDING + 0.5, PADDING + 0.5, plotW - 1, plotH - 1)
-  }, [surface, width, height, maxAbs, bounds, spanX, spanY])
+  }, [surface, width, height, maxAbs, baseline, bounds, spanX, spanY])
 
   const onMove = (event: MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current

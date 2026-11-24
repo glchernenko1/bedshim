@@ -28,6 +28,8 @@ export interface Grid {
   rowSpacing: number
   meshBounds: MeshBounds
   plate: { w: number; h: number }
+  /** Cells were extended into the margin up to the plate edges. */
+  extendToPlate: boolean
   warnings: CoreMessage[]
 }
 
@@ -37,6 +39,11 @@ export interface GridOptions {
   tapeWidth: number
   meshXCount: number
   meshYCount: number
+  /**
+   * Add margin rows and columns up to the plate edges. Cells outside the mesh
+   * are still marked `unprobed`; the planner decides whether to tape them.
+   */
+  extendToPlate?: boolean
 }
 
 /** 0 → A, 25 → Z, 26 → AA (SPEC §3 letters rows front→back). */
@@ -57,23 +64,33 @@ export function rowLabel(index: number): string {
  * the STL and the SVG (SPEC §3).
  */
 export function buildGrid(options: GridOptions): Grid {
-  const { plate, meshBounds, tapeWidth, meshXCount, meshYCount } = options
+  const { plate, meshBounds, tapeWidth, meshXCount, meshYCount, extendToPlate = false } = options
   if (!(tapeWidth > 0)) throw new RangeError('tapeWidth must be > 0')
   const spanX = meshBounds.maxX - meshBounds.minX
   const spanY = meshBounds.maxY - meshBounds.minY
   if (!(spanX > 0) || !(spanY > 0)) throw new RangeError('meshBounds must be non-empty')
 
   const rowSpacing = meshYCount > 1 ? spanY / (meshYCount - 1) : spanY
-  const cols = Math.max(1, Math.ceil(spanX / tapeWidth - 1e-9))
-  const rows = Math.max(1, Math.ceil(spanY / rowSpacing - 1e-9))
+  const baseCols = Math.max(1, Math.ceil(spanX / tapeWidth - 1e-9))
+  const baseRows = Math.max(1, Math.ceil(spanY / rowSpacing - 1e-9))
+  const leftCols = extendToPlate ? Math.max(0, Math.ceil(meshBounds.minX / tapeWidth - 1e-9)) : 0
+  const rightSpace = plate.w - (meshBounds.minX + baseCols * tapeWidth)
+  const rightCols = extendToPlate ? Math.max(0, Math.ceil(rightSpace / tapeWidth - 1e-9)) : 0
+  const bottomRows = extendToPlate ? Math.max(0, Math.ceil(meshBounds.minY / rowSpacing - 1e-9)) : 0
+  const topSpace = plate.h - (meshBounds.minY + baseRows * rowSpacing)
+  const topRows = extendToPlate ? Math.max(0, Math.ceil(topSpace / rowSpacing - 1e-9)) : 0
+  const cols = Math.max(1, leftCols + baseCols + rightCols)
+  const rows = Math.max(1, bottomRows + baseRows + topRows)
+  const originX = meshBounds.minX - leftCols * tapeWidth
+  const originY = meshBounds.minY - bottomRows * rowSpacing
 
   const cells: Cell[] = []
   let partial = 0
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      const rawX0 = meshBounds.minX + col * tapeWidth
+      const rawX0 = originX + col * tapeWidth
       const rawX1 = rawX0 + tapeWidth
-      const rawY0 = meshBounds.minY + row * rowSpacing
+      const rawY0 = originY + row * rowSpacing
       const rawY1 = rawY0 + rowSpacing
       const x0 = Math.max(0, Math.min(rawX0, plate.w))
       const x1 = Math.max(0, Math.min(rawX1, plate.w))
@@ -122,5 +139,5 @@ export function buildGrid(options: GridOptions): Grid {
     })
   }
 
-  return { cells, cols, rows, tapeWidth, rowSpacing, meshBounds, plate, warnings }
+  return { cells, cols, rows, tapeWidth, rowSpacing, meshBounds, plate, extendToPlate, warnings }
 }

@@ -234,3 +234,88 @@ export function fitMaterial(options: FitOptions): FitResult {
     warnings,
   }
 }
+
+export interface BridgingOptions extends Omit<FitOptions, 'sigma'> {
+  /** Lowest σ tried, mm. Default 8. */
+  minSigma?: number
+  /** Highest σ tried, mm. Default 60. */
+  maxSigma?: number
+  /** Sweep step, mm. Default 1. */
+  step?: number
+  /** σ kept when the data cannot pin it down. Default 22. */
+  fallbackSigma?: number
+}
+
+export interface BridgingResult {
+  /** σ used for `fit`: the best one, or the fallback when it is not identifiable. */
+  sigma: number
+  /** Fit of t1/ts at `sigma`, with all the usual warnings. */
+  fit: FitResult
+  /** The sweep, for inspection and tests. */
+  curve: Array<{ sigma: number; noise: number; r2: number }>
+  /** True when the noise curve has a clear minimum, so σ comes from the data. */
+  identifiable: boolean
+  /** σ values compatible with the noise floor, mm. */
+  low: number
+  high: number
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+/**
+ * Fits the bridging σ automatically. For every candidate σ the same least
+ * squares as `fitMaterial` is solved, and the smallest residual wins. The
+ * uncertainty comes from a one-parameter ΔSSE = s² interval; a flat curve or a
+ * minimum at a bound means the pair simply does not contain enough shape
+ * information, so the fallback σ is kept and a warning is attached.
+ */
+export function fitBridging(options: BridgingOptions): BridgingResult {
+  const { minSigma = 8, maxSigma = 60, step = 1, fallbackSigma = 22, ...fitOptions } = options
+  const fallback = clamp(fallbackSigma, minSigma, maxSigma)
+  const curve: BridgingResult['curve'] = []
+
+  for (let sigma = minSigma; sigma <= maxSigma + 1e-9; sigma += step) {
+    const fit = fitMaterial({ ...fitOptions, sigma })
+    if (fit.warnings.some((warning) => warning.code === 'calibrate.error.noChanges')) continue
+    curve.push({ sigma: Math.round(sigma * 10) / 10, noise: fit.noise, r2: fit.r2 })
+  }
+
+  if (curve.length === 0) {
+    const fit = fitMaterial({ ...fitOptions, sigma: fallback })
+    return {
+      sigma: fallback,
+      fit: {
+        ...fit,
+        warnings: [...fit.warnings, { code: 'calibrate.warn.sigmaWeak', params: { sigma: fallback.toFixed(1) } }],
+      },
+      curve,
+      identifiable: false,
+      low: minSigma,
+      high: maxSigma,
+    }
+  }
+
+  let best = curve[0]!
+  for (const point of curve) if (point.noise < best.noise) best = point
+
+  const nodes = fitOptions.oldSurface.xCount * fitOptions.oldSurface.yCount
+  const bestSse = best.noise * best.noise * nodes
+  const residualVariance = bestSse / Math.max(1, nodes - 3)
+  const threshold = Math.sqrt((bestSse + residualVariance) / nodes)
+  const compatible = curve.filter((point) => point.noise <= threshold + 1e-15)
+  const low = Math.min(...compatible.map((point) => point.sigma))
+  const high = Math.max(...compatible.map((point) => point.sigma))
+  const atBound = best.sigma <= minSigma + 1e-9 || best.sigma >= maxSigma - 1e-9
+  const edgeNoise = Math.min(curve[0]!.noise, curve[curve.length - 1]!.noise)
+  const improvement = edgeNoise > 0 ? 1 - best.noise / edgeNoise : 0
+  const identifiable = !atBound && high - low <= 12 && curve.length >= 3 && improvement >= 0.02
+  const sigma = identifiable ? best.sigma : fallback
+  const fit = fitMaterial({ ...fitOptions, sigma })
+  const warnings: CoreMessage[] = identifiable
+    ? fit.warnings
+    : [...fit.warnings, { code: 'calibrate.warn.sigmaWeak', params: { sigma: sigma.toFixed(1) } }]
+
+  return { sigma, fit: { ...fit, warnings }, curve, identifiable, low, high }
+}

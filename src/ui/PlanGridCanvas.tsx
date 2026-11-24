@@ -60,14 +60,14 @@ export function PlanGridCanvas({ plan }: { plan: Plan }) {
       const w = (cell.x1 - cell.x0) * sx
       const h = (cell.y1 - cell.y0) * sy
       const color = LAYER_COLORS[Math.min(cell.layers, LAYER_COLORS.length - 1)]!
-      context.fillStyle = cell.unprobed ? '#fafafa' : color
+      context.fillStyle = cell.unprobed && !cell.extrapolated ? '#fafafa' : color
       context.fillRect(x, y, w, h)
       context.strokeStyle = 'rgba(255, 255, 255, 0.9)'
       context.lineWidth = 1
       context.strokeRect(x + 0.5, y + 0.5, Math.max(0, w - 1), Math.max(0, h - 1))
 
-      if (cell.unprobed) {
-        // Outside the mesh: hatched, and the planner keeps it empty by default.
+      if (cell.unprobed && !cell.extrapolated) {
+        // Outside the mesh and not extrapolated: hatched, no tape.
         context.save()
         context.beginPath()
         context.rect(x, y, w, h)
@@ -80,6 +80,16 @@ export function PlanGridCanvas({ plan }: { plan: Plan }) {
           context.lineTo(x + offset + h, y)
           context.stroke()
         }
+        context.restore()
+      }
+
+      if (cell.extrapolated) {
+        // Planned from the nearest edge value, not measured.
+        context.save()
+        context.setLineDash([3, 2])
+        context.strokeStyle = '#9254de'
+        context.lineWidth = 1.5
+        context.strokeRect(x + 1, y + 1, Math.max(0, w - 2), Math.max(0, h - 2))
         context.restore()
       }
 

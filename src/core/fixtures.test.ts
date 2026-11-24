@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { fitMaterial } from './calibrate'
+import { fitBridging, fitMaterial } from './calibrate'
 import { buildGrid } from './grid'
 import { DEFAULT_MATERIAL, type Material } from './material'
 import { createSurface } from './mesh/interpolate'
@@ -64,6 +64,20 @@ describe('test measurements (fixtures/test-after-pass*.cfg)', () => {
     expect(fit.t1).toBeCloseTo(TRUE.t1, 3)
     expect(fit.ts).toBeCloseTo(TRUE_TS, 3)
     expect(fit.r2).toBeGreaterThan(0.99)
+  })
+
+  it('pass 1 also recovers the bridging sigma that generated the fixture', () => {
+    const bridging = fitBridging({
+      oldSurface: createSurface(m1),
+      newSurface: createSurface(m2),
+      oldLayers: zero,
+      newLayers: p1.layers,
+      grid,
+    })
+    expect(bridging.identifiable).toBe(true)
+    expect(bridging.sigma).toBeCloseTo(22, 0)
+    expect(bridging.fit.t1).toBeCloseTo(TRUE.t1, 3)
+    expect(bridging.fit.ts).toBeCloseTo(TRUE_TS, 3)
   })
 
   it('pass 2 recovers ts with t1 taken from the material', () => {

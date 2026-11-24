@@ -105,7 +105,15 @@ describe('predict — report', () => {
     const result = predict({ surface, grid: grid(), layers, material, reference: 0.02 })
     expect(result.maxAbsResidual).toBeLessThan(1e-9)
     expect(result.rmsResidual).toBeLessThan(1e-9)
+    expect(result.spreadResidual).toBeLessThan(1e-9)
     expect(result.achievable).toBe(1) // nothing was taped, nothing to achieve
+  })
+
+  it('keeps the spread independent of a uniform offset', () => {
+    const surface = createSurface(syntheticMesh(() => 0.02))
+    const result = predict({ surface, grid: grid(), layers: zeros(), material, reference: 0 })
+    expect(result.maxAbsResidual).toBeCloseTo(0.02, 9)
+    expect(result.spreadResidual).toBeLessThan(1e-9)
   })
 
   it('exports a parseable [bed_mesh] block of the prediction', () => {

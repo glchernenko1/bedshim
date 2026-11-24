@@ -27,9 +27,13 @@ npm run cli -- parse fixtures/neptune4-mesh.cfg
 | Mesh view | done — 2D heatmap, rotatable 3D surface (canvas, no WebGL), min/Δ/median/mean/MAD |
 | P2 grid+plan | done — `buildGrid` 10×10, reference + quantization, golden plan, probe-count advice |
 | P3 forward | done — σ-blur prediction, residual map, achievable/delivered, mesh export |
-| P4 strips | not started |
-| P5 STL + SVG | not started |
-| P6 calibration | first half done — measurements, t1/ts fit, auto-round; wizard and project JSON remain |
+| P4 strips | done — row runs per level, batching, EN/RU cut list and print sheet |
+| P5 STL | done — manifold STL with frame + bridges; numbers 1–10 on both front/back rims and letters A–J on both sides; optional margin plan; SVG output removed by owner |
+| P6 calibration | first half done — measurements, t1/ts/σ fit, auto-round; wizard and project JSON remain |
+
+Next: fix the owner-reported **Extend to plate edges** behaviour and add labels to
+the extended lattice (which currently drops the frame/rim label band). Details in
+[`STATUS.md`](STATUS.md).
 
 Decisions, deviations from the first spec draft and the current numbers live in
 [`STATUS.md`](STATUS.md).

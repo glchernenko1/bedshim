@@ -6,6 +6,7 @@ import { createSurface } from './mesh/interpolate'
 import { parseMesh } from './mesh/parse'
 import type { Mesh } from './mesh/types'
 import { diffAgainstPhysical, plan, quantile, quantize, type PlanOptions } from './plan'
+import { buildStrips } from './strips'
 
 const material: Material = { nominal: 0.05, t1: 0.03, ts: 0.03, calibrated: true }
 const fixtureText = readFileSync(new URL('../../fixtures/neptune4-mesh.cfg', import.meta.url), 'utf8')
@@ -174,6 +175,43 @@ describe('plan — physics guards', () => {
     const raw = fixturePlan({ smoothTarget: false })
     const smoothed = fixturePlan({ smoothTarget: true, sigma: 22 })
     expect(smoothed.stats.totalLayers).toBeLessThan(raw.stats.totalLayers)
+  })
+})
+
+describe('plan — extended margin', () => {
+  function extendedSetup() {
+    const { mesh } = parseMesh(fixtureText)
+    const surface = createSurface(mesh)
+    const grid = buildGrid({
+      plate: { w: 235, h: 235 },
+      meshBounds: mesh.bounds!,
+      tapeWidth: 20,
+      meshXCount: mesh.xCount,
+      meshYCount: mesh.yCount,
+      extendToPlate: true,
+    })
+    return { surface, grid }
+  }
+
+  it('plans the margin from the nearest edge and warns about it', () => {
+    const { surface, grid } = extendedSetup()
+    const result = plan({ surface, grid, material, referencePercentile: 0.85, rounding: 'round' })
+    expect(result.stats.extrapolated).toBe(82)
+    expect(result.warnings.map((warning) => warning.code)).toContain('plan.notice.extrapolated')
+    expect(result.warnings.map((warning) => warning.code)).not.toContain('plan.notice.unprobed')
+    expect(result.stats.totalLayers).toBeGreaterThan(112)
+    expect(result.stats.cellsWithTape).toBeGreaterThan(78)
+    expect(result.layers[0]![3]).toBeGreaterThan(0)
+    expect(result.cells.find((cell) => cell.row === 0 && cell.col === 3)?.extrapolated).toBe(true)
+  })
+
+  it('cuts partial edge pieces at their real width and length', () => {
+    const { surface, grid } = extendedSetup()
+    const result = plan({ surface, grid, material, referencePercentile: 0.85, rounding: 'round' })
+    const strips = buildStrips(result)
+    const bottom = strips.pieces.find((piece) => piece.label === 'A4–A11')
+    expect(bottom).toMatchObject({ width: 2, length: 160 })
+    expect(strips.pieces.length).toBeGreaterThan(22)
   })
 })
 

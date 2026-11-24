@@ -7,7 +7,7 @@ import { useAppStore } from './state/store'
 import { MeshTab } from './ui/MeshTab'
 import { PlanTab } from './ui/PlanTab'
 import { CalibrationCard } from './ui/CalibrationCard'
-import { Placeholder } from './ui/Placeholder'
+import { LatticeTab } from './ui/LatticeTab'
 
 export function App() {
   const lang = useLang()
@@ -66,13 +66,7 @@ export function App() {
                 {
                   key: 'lattice',
                   label: t('app.tab.lattice'),
-                  children: (
-                    <Placeholder
-                      phase="P5"
-                      titleKey="lattice.placeholder.title"
-                      bodyKey="lattice.placeholder.body"
-                    />
-                  ),
+                  children: <LatticeTab />,
                 },
               ]}
             />

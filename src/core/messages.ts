@@ -32,6 +32,12 @@ export const MESSAGE_CODES = [
   'plan.notice.unprobed',
   'plan.notice.clamped',
   'plan.notice.inconsistent',
+  'plan.notice.extrapolated',
+  // strips
+  'strips.warn.partial',
+  // lattice
+  'lattice.warn.notClosed',
+  'lattice.warn.disconnected',
   // probe recommendation
   'probe.notice.overMeasuring',
   'probe.notice.coarserThanTape',
@@ -47,6 +53,7 @@ export const MESSAGE_CODES = [
   'calibrate.warn.inconclusive',
   'calibrate.warn.onlyTs',
   'calibrate.warn.poorFit',
+  'calibrate.warn.sigmaWeak',
   'calibrate.notice.tsOnly',
 ] as const
 

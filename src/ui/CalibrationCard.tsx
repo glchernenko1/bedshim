@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Alert, Button, Card, Col, Row, Select, Space, Statistic, Typography } from 'antd'
-import { fitMaterial, type FitResult } from '../core/calibrate'
+import { fitBridging, type BridgingResult } from '../core/calibrate'
 import { buildGrid } from '../core/grid'
 import { createSurface } from '../core/mesh/interpolate'
 import type { Measurement } from '../state/store'
@@ -29,11 +29,14 @@ export function CalibrationCard() {
   const measurements = useAppStore((state) => state.measurements)
   const material = useAppStore((state) => state.material)
   const setMaterial = useAppStore((state) => state.setMaterial)
+  const sigma = useAppStore((state) => state.sigma)
+  const setSigma = useAppStore((state) => state.setSigma)
   const setMeasurementLayers = useAppStore((state) => state.setMeasurementLayers)
   const setRounding = useAppStore((state) => state.setRounding)
   const [fromId, setFromId] = useState<string | null>(null)
   const [toId, setToId] = useState<string | null>(null)
-  const [fit, setFit] = useState<FitResult | null>(null)
+  const [result, setResult] = useState<BridgingResult | null>(null)
+  const fit = result?.fit ?? null
 
   if (measurements.length < 2) {
     return (
@@ -78,23 +81,27 @@ export function CalibrationCard() {
       tapeWidth: from.applied.tapeWidth,
       meshXCount: from.mesh.xCount,
       meshYCount: from.mesh.yCount,
+      extendToPlate: from.applied.extendToPlate,
     })
-    setFit(
-      fitMaterial({
+    setResult(
+      fitBridging({
         oldSurface: createSurface(from.mesh),
         newSurface: createSurface(to.mesh),
         oldLayers: fromLayers,
         newLayers: to.layers,
         grid,
         fixedT1: material.calibrated ? material.t1 : undefined,
+        fallbackSigma: sigma,
       }),
     )
   }
 
   const apply = (): void => {
-    if (!fit) return
+    if (!result) return
     const round = (value: number): number => Math.round(value * 10000) / 10000
-    setMaterial({ ...material, t1: round(fit.t1), ts: round(fit.ts), calibrated: true })
+    setMaterial({ ...material, t1: round(result.fit.t1), ts: round(result.fit.ts), calibrated: true })
+    // The same pair also measures the bridging width and applies it at once.
+    setSigma(Math.round(result.sigma * 10) / 10)
     // With both values measured, nearest-layer rounding is safe and expected.
     setRounding('round')
   }
@@ -139,7 +146,11 @@ export function CalibrationCard() {
               </Button>
               {material.calibrated && (
                 <Typography.Text type="secondary">
-                  {t('calib.current', { t1: material.t1.toFixed(4), ts: material.ts === null ? '—' : material.ts.toFixed(4) })}
+                  {t('calib.current', {
+                    t1: material.t1.toFixed(4),
+                    ts: material.ts === null ? '—' : material.ts.toFixed(4),
+                    sigma: sigma.toFixed(1),
+                  })}
                 </Typography.Text>
               )}
             </Space>
@@ -147,19 +158,25 @@ export function CalibrationCard() {
             {fit && (
               <>
                 <Row gutter={[12, 8]}>
-                  <Col xs={12} md={6}>
+                  <Col xs={12} md={4}>
                     <Statistic title={t('calib.t1')} value={fit.t1} precision={4} suffix="mm" />
                   </Col>
-                  <Col xs={12} md={6}>
+                  <Col xs={12} md={4}>
                     <Statistic title={t('calib.ts')} value={fit.ts} precision={4} suffix="mm" />
                   </Col>
-                  <Col xs={12} md={6}>
+                  <Col xs={12} md={4}>
+                    <Statistic title={t('calib.sigma')} value={result?.sigma ?? sigma} precision={1} suffix="mm" />
+                  </Col>
+                  <Col xs={12} md={4}>
                     <Statistic title={t('calib.r2')} value={fit.r2} precision={3} />
                   </Col>
-                  <Col xs={12} md={6}>
+                  <Col xs={12} md={4}>
                     <Statistic title={t('calib.noise')} value={fit.noise} precision={4} suffix="mm" />
                   </Col>
                 </Row>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('calib.sigma.note')}
+                </Typography.Text>
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   {t('calib.counts', {
                     counts:
@@ -175,7 +192,7 @@ export function CalibrationCard() {
                     type={
                       warning.code === 'calibrate.error.noChanges' || warning.code === 'calibrate.warn.negative'
                         ? 'error'
-                        : warning.code === 'calibrate.warn.inconclusive'
+                        : warning.code === 'calibrate.warn.inconclusive' || warning.code === 'calibrate.warn.sigmaWeak'
                           ? 'warning'
                           : 'info'
                     }

@@ -11,6 +11,8 @@ export interface AppliedPlan {
   tapeWidth: number
   plateW: number
   plateH: number
+  /** The plan included cells in the unprobed margin. */
+  extendToPlate: boolean
 }
 
 export interface Measurement {
@@ -32,11 +34,27 @@ export interface Measurement {
 
 let counter = 0
 
+export interface PlanSettings {
+  tapeWidth: number
+  plateW: number
+  plateH: number
+  percentile: number
+  maxLayers: number
+  /** Add margin cells up to the plate edges and plan them from the nearest edge. */
+  extendToPlate: boolean
+}
+
 export interface AppState {
   lang: Lang
   setLang: (lang: Lang) => void
   material: Material
   setMaterial: (material: Material) => void
+  /** Geometry and target choices shared by the Plan and Lattice tabs. */
+  planSettings: PlanSettings
+  setPlanSettings: (patch: Partial<PlanSettings>) => void
+  /** Bridging width of the plate, mm. Fitted by calibration, adjustable on the Plan tab. */
+  sigma: number
+  setSigma: (sigma: number) => void
   rounding: Rounding
   setRounding: (rounding: Rounding) => void
 
@@ -65,6 +83,18 @@ export const useAppStore = create<AppState>()(
       setLang: (lang) => set({ lang }),
       material: DEFAULT_MATERIAL,
       setMaterial: (material) => set({ material }),
+      planSettings: {
+        tapeWidth: 20,
+        plateW: 235,
+        plateH: 235,
+        percentile: 0.85,
+        maxLayers: 6,
+        extendToPlate: false,
+      },
+      setPlanSettings: (patch) =>
+        set((state) => ({ planSettings: { ...state.planSettings, ...patch } })),
+      sigma: 22,
+      setSigma: (sigma) => set({ sigma }),
       rounding: 'floor',
       setRounding: (rounding) => set({ rounding }),
 
@@ -115,7 +145,17 @@ export const useAppStore = create<AppState>()(
           ),
         })),
 
-      clearMeasurements: () => set({ measurements: [], selectedId: null, pending: null }),
+      clearMeasurements: () =>
+        set({
+          measurements: [],
+          selectedId: null,
+          pending: null,
+          // Calibration is derived from the measurements: clearing them must not
+          // leave a "measured" material, round rounding or a fitted σ behind.
+          material: { ...DEFAULT_MATERIAL },
+          rounding: 'floor',
+          sigma: 22,
+        }),
 
       setMeasurementLayers: (id, layers) =>
         set((state) => ({
@@ -124,7 +164,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'bedshim.settings',
-      version: 5,
+      version: 7,
       // Older builds stored a single mesh; missing keys fall back to the defaults.
       migrate: (persisted) => persisted as AppState,
     },

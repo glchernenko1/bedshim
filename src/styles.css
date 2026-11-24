@@ -34,3 +34,9 @@ body {
     padding: 8px;
   }
 }
+
+.lattice-preview svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}

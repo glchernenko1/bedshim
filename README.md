@@ -9,6 +9,8 @@ is the kickoff brief.
 
 Live build: <https://glchernenko1.github.io/bedshim/> — every push to `main` runs
 `.github/workflows/pages.yml` (tests, build, publish `dist/` to GitHub Pages).
+The sample meshes and the **Load example** picker exist only in `npm run dev`;
+the Pages build drops both, so visitors must paste their own mesh.
 
 ## Commands
 
@@ -30,13 +32,12 @@ npm run cli -- parse fixtures/neptune4-mesh.cfg
 | Mesh view | done — 2D heatmap, rotatable 3D surface (canvas, no WebGL), min/Δ/median/mean/MAD |
 | P2 grid+plan | done — `buildGrid` 10×10, reference + quantization, golden plan, probe-count advice |
 | P3 forward | done — σ-blur prediction, residual map, achievable/delivered, mesh export |
-| P4 strips | done — row runs per level, batching, EN/RU cut list and print sheet |
+| P4 strips | done — row/column runs per level, batching, EN/RU cut list and print sheet |
 | P5 STL | done — manifold STL with frame + bridges; numbers 1–10 on both front/back rims and letters A–J on both sides; optional margin plan; SVG output removed by owner |
 | P6 calibration | first half done — measurements, t1/ts/σ fit, auto-round; wizard and project JSON remain |
 
-Next: fix the owner-reported **Extend to plate edges** behaviour and add labels to
-the extended lattice (which currently drops the frame/rim label band). Details in
-[`STATUS.md`](STATUS.md).
+Next: finish P6 — uniform-patch wizard, per-cell flags, peel and project
+JSON. Details in [`STATUS.md`](STATUS.md).
 
 Decisions, deviations from the first spec draft and the current numbers live in
 [`STATUS.md`](STATUS.md).
@@ -52,3 +53,5 @@ in three real-world shapes (SPEC Appendix A).
 `fixtures/test-after-pass1.cfg` and `test-after-pass2.cfg` — synthetic
 "after taping" meshes with a known material (t1 = 0.025, ts = 0.040), for trying
 the calibration loop in the UI. Steps: [`fixtures/TEST-MEASUREMENTS.md`](fixtures/TEST-MEASUREMENTS.md).
+In the app they are reachable through **Load example** in the dev server only
+(`src/dev/examples.ts`); the published build has no example picker.

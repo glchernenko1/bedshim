@@ -1,44 +1,45 @@
 # bedshim — status, decisions and handoff
 
-Last updated: 2026-11-24 (end of session). `SPEC.md` is the contract; this file
+Last updated: 2026-11-25. `SPEC.md` is the contract; this file
 records the implementation state, every deliberate deviation and what is left.
 Read this first when resuming.
 
 ## Next session — start here (2026-11-25)
 
-**Priority 0: fix `Extend to plate edges`.** The owner tested the new margin
-extension and reports that it *does not work well* and needs another pass. Also,
-the lattice built with the extension has **no numbers or letters**, because the
-extended grid reaches the plate edge and `auto` drops the frame/rim (and with it
-the label band).
+**`Extend to plate edges` was reworked after the owner's report** (micro cells
+appeared at the edge even though their values only repeat the neighbour). The new
+model keeps the probed **10×10 grid and its ids**; extension only stretches the
+outer row and column to the plate edge:
 
-Done late on 2026-11-24: in the **framed** design labels are now cut into all
-four rims — numbers 1–10 on the back **and front**, letters A–J on the left
-**and right** (covered by a test and checked in the preview). The tight,
-extended lattice still has no label band; that is the open part.
+- a **6 mm solid label border** stays at the plate edge; the lattice is always
+  the full plate in extended mode and cuts numbers/letters into that border;
+- the outer cells become rectangles (`A*`, `J*`, `*1`, `*10`), so no extra thin
+  cells appear and no cell is smaller than one normal step (20 × 19 mm);
+- the cut list picks the direction per side: interior columns are cut
+  front→back at 20 mm (the stretched rows are just length), while the wide
+  left/right columns are cut across their row. Only the four corners split:
+  `J1` is 2 × 18.5 × 24 mm and `J10` 2 × 18.5 × 39 mm.
 
 Reproduce with `fixtures/neptune4-mesh.cfg`, Plan → **Extend to plate edges**:
 
-- grid goes **10×10 → 13×14**, edge cells 10 / 5 / 2 / 5 mm;
-- plan becomes **239 layers / 136 cells / 4640 mm**, reference moves to 0.0616 mm;
-- **82 margin cells** use nearest-edge extrapolation;
-- the cut list contains very narrow strips (**2 / 5 mm**) and many partial cells;
-- the lattice switches to the tight full-plate grid (no frame, **no labels**),
-  ~3.0 cm³ / 3.6 g, closed manifold.
+- grid stays **10×10**, cells `A1` = 24 × 34 mm, `J10` = 39 × 37 mm;
+- 36 edge cells are stretched, their values follow the nearest measured edge;
+- plan **121 layers / 79 cells / 2470 mm**, reference **0.0499 mm**;
+- cut list **32 pieces / 2897 mm**, 18 batches; every non-corner piece is 20 mm
+  wide (`A3–J3` 20 × 223 mm; edge cells `H1` 20 × 24 and `I10` 20 × 39 mm);
+- lattice **5.3 cm³ / 6.6 g**, closed manifold, labels on all four sides.
 
-Ask the owner what exactly “does not work well” means before changing the model
-— do not guess. Likely work items:
+Still open for the owner's review:
 
-1. Decide how labels should work in extended mode without bringing back the
-   frame gap: thin label rim/band, labels in the edge cells, or labels only in
-   the Plan tab's layer map / cut list (currently none in the STL).
-2. Review the nearest-edge extrapolation and the reference/plan jump; maybe the
-   margin cells should use a different reference or be excluded from the
-   quantile.
-3. Review the partial strips (2 / 5 mm) and the cut-list UX; maybe merge a
-   narrow edge row into the neighbouring full row with an explicit warning.
-4. Re-check the `baseLayers` mismatch case when extension is toggled after a
-   plan is applied (warning exists, but the physical state is still lost).
+1. The 6 mm border means the plan does **not** tape the last 6 mm at the plate
+   edge. That is the space the printed lattice uses for its frame and labels;
+   the alternative is no labels in the STL.
+2. Toggling extension after a plan keeps the matrix dimensions (10×10), so the
+   old base-mismatch warning no longer fires; the stored layer state still
+   applies per cell, but the margin part of a stretched edge cell was not taped.
+3. **Examples are dev-only now:** `src/dev/examples.ts` is imported behind
+   `import.meta.env.DEV`, so `npm run dev` has the three-sample picker and the
+   GitHub Pages build has neither the button nor the fixture text.
 
 ## Session summary — 2026-11-24
 
@@ -75,13 +76,13 @@ Ask the owner what exactly “does not work well” means before changing the mo
 | P1 mesh | done | three mesh shapes, Klipper-exact bicubic surface, fixture golden tests |
 | P2 grid + plan | done | `buildGrid`, reference + quantization, golden plan, probe advice, plan screen |
 | P3 forward | done | σ-bridged prediction, residual map, `achievable`/`delivered`, mesh export |
-| P4 strips | done | row runs per level, batching, EN/RU cut list, print sheet; 22 pieces / 2240 mm golden |
+| P4 strips | done | row/column runs per level, batching, EN/RU cut list, print sheet; 22 pieces / 2240 mm golden |
 | P5 STL | done | manifold STL with frame + bridges, numbers front/back, letters both sides, optional margin plan; SVG output removed by owner |
 | P6 calibration | first half done | measurement history, apply-plan state, t1/ts/σ fit, auto-round; wizard, peel UI and project JSON remain |
 
 Extras delivered beyond the phase table: 2D heatmap, rotatable 3D surface
 (canvas, no WebGL), surface statistics (min/mean/median/Δ/MAD with plain-language
-bands), measurement history, calibration tab, example picker, clear-all.
+bands), measurement history, calibration tab, dev-only example picker, clear-all.
 
 ## What works today
 
@@ -103,10 +104,12 @@ bands), measurement history, calibration tab, example picker, clear-all.
   deadband), a two-mode map (residual to target with deadband/floor bands, or
   the predicted relief as the same interpolated heatmap as the measured mesh)
   with a legend, plus a paste-ready `[bed_mesh predicted]`.
-- **Strips (P4)** — independent row runs per level become pieces, identical
-  pieces are batched by cut size, the Plan tab shows the EN/RU cut list in
-  placement order and prints a one-page sheet; the golden plan gives 22 pieces /
-  2240 mm. Free extension into the next cell is not implemented yet.
+- **Strips (P4)** — normal row runs per level become pieces, identical pieces
+  are batched by cut size, the Plan tab shows the EN/RU cut list in placement
+  order and prints a one-page sheet; the golden plan gives 22 pieces / 2240 mm.
+  With `Extend to plate edges`, interior columns are cut front→back and the
+  stretched edge columns across their rows, so the cut width stays 20 mm except
+  at the four corners.
 - **Plan diff** — the Plan tab reports add/peel/unchanged layers against the
   measured stack and lists every changed cell; on the first iteration this is
   simply what will be pasted.
@@ -116,9 +119,11 @@ bands), measurement history, calibration tab, example picker, clear-all.
   inset by >5 mm; it fuses the rim to the frame where the gap is too narrow, and
   trims to a tight grid near the edge. Numbers 1–10 are cut into both the back
   and front rims, and letters A–J into both side rims. `Extend to plate edges`
-  adds margin cells and plans them from the nearest edge value, with a warning;
-  the lattice then drops the frame and covers the whole plate. The SVG plan
-  output was removed by the owner; the Lattice preview is internal.
+  stretches the outer row and column to a 6 mm border at the plate edge; their
+  values follow the nearest measured edge, and the lattice keeps the full plate
+  and cuts the labels into that border (no frame/gap in that mode). Rows taller
+  than the tape are cut as several side-by-side strips. The SVG plan output was
+  removed by the owner; the Lattice preview is internal.
 - **Measurements** — every parsed map is stored with its text, geometry and
   absolute layer state; select/delete; clear-all with confirmation.
 - **Calibration (P6 first half)** — the Calibration tab compares two measurements
@@ -199,16 +204,27 @@ bands), measurement history, calibration tab, example picker, clear-all.
     the 0.8 mm wall. The top/bottom faces are re-triangulated from a centroid fan
     that includes every collinear vertex, so the STL is closed and watertight
     (checked by the edge-pair and connectivity test).
-20. **Margin planning is opt-in and nearest-edge.** `Extend to plate edges` adds
-    margin rows/columns up to the plate, clipped at the edges, and plans them
-    from the surface's clamped edge value (`surface.at` already clamps). The
-    plan warns with `plan.notice.extrapolated`, marks the cells, and the lattice
-    then drops the frame because the cells reach the plate. If the stored layer
-    matrix no longer matches the grid (tape width or extension changed), the Plan
-    tab warns instead of silently treating the bed as bare.
+20. **Margin planning is opt-in and stretches the edge cells.**
+    `Extend to plate edges` keeps the probed 10×10 grid, its ids and its matrix
+    shape; only the outer row and column move to a 6 mm solid border at the
+    plate edge (the printable lattice cuts its labels there). Their values come
+    from the surface's clamped edge (`surface.at` already clamps), they are
+    flagged `stretched`/`extrapolated` and marked in the layer map. No extra
+    thin cells are created: every cell is at least one normal step. The cut
+    direction follows the cell side that is one tape width: interior columns are
+    cut front→back, the stretched left/right columns across their rows, so the
+    strip width stays the tape width. Only the four corners, where a stretched
+    row meets a stretched column, are split across (`J1` 2 × 18.5 × 24 mm,
+    `J10` 2 × 18.5 × 39 mm). If the stored
+    layer matrix no longer matches the grid dimensions (tape width or plate size
+    changed), the Plan tab warns instead of silently treating the bed as bare.
 21. **The 1:1 SVG plan output was removed by the owner.** The Plan tab's layer
     map, cut list and the Lattice tab's own preview cover the need; core
     `buildLatticeSvg` remains only for that preview.
+22. **Examples are dev-only.** The fixture meshes and the **Load example** picker
+    live in `src/dev/examples.ts`, imported dynamically behind
+    `import.meta.env.DEV`. `npm run dev` offers all three samples; the production
+    build (GitHub Pages) contains neither the picker nor the fixture text.
 
 ## Problems found and solved during the session
 
@@ -251,33 +267,32 @@ bands), measurement history, calibration tab, example picker, clear-all.
 - **Full-plate lattice was ~15 g with huge solid margins** — the 235×235×0.6 mm
   sheet has 12.1 cm³ of material, mostly the border outside the 200×190 probed
   area. The default frame + rim + labels is 7.9 cm³ / 9.7 g; the extended plan
-  covers the plate with cells and needs no frame: 3.0 cm³ / 3.6 g, close to the
-  spec's 2–3 g.
-- **Toggling extension after applying a plan** — the stored layer matrix no
-  longer matches the grid. The Plan tab now warns (`plan.baseMismatch`) instead
-  of silently treating the bed as bare; the calibration grid records
-  `AppliedPlan.extendToPlate`.
+  covers the plate with stretched edge cells up to a 6 mm label border:
+  5.3 cm³ / 6.6 g.
+- **Toggling extension after applying a plan** — earlier builds added margin
+  rows/columns, so the stored matrix no longer matched and the Plan tab warned
+  (`plan.baseMismatch`). Extension now keeps the 10×10 matrix, so the warning no
+  longer fires; the stored state still applies per cell, but the stretched margin
+  part of an edge cell was not taped (see the open item above).
 
 ## Calibration test data
 
 `fixtures/test-after-pass1.cfg` and `fixtures/test-after-pass2.cfg` are synthetic
 after-taping meshes with true **t1 = 0.025 mm, ts = 0.040 mm**.
-Walkthrough: `fixtures/TEST-MEASUREMENTS.md`. In the app, "Load example" offers
-1) original bed, 2) after pass 1 (fits t1/ts), 3) after pass 2 (fits ts).
+Walkthrough: `fixtures/TEST-MEASUREMENTS.md`. In the dev server, "Load example"
+offers 1) original bed, 2) after pass 1 (fits t1/ts), 3) after pass 2 (fits ts);
+the published build has no example picker.
 Verified end to end in the browser: pass 1 → 0.0250 / 0.0399, R² 0.999; pass 2 →
 ts 0.0399; the M1→M3 pair also recovers 0.025 / 0.040 in tests.
 
 ## What is left (in suggested order)
 
-1. **`Extend to plate edges` fix** — owner-reported: it does not work well, and
-   the extended lattice has no numbers/letters. Repro details and decisions are
-   in “Next session — start here” above.
-2. **P6 remaining** — uniform-patch wizard (§9.3), per-cell calibration flags
+1. **P6 remaining** — uniform-patch wizard (§9.3), per-cell calibration flags
    (bubble / not seated / noise), peel action, project JSON import/export,
    repeatability gate (§5.4).
-3. **Strips extension** — the spec allows a piece to overhang by up to 2 mm into
+2. **Strips extension** — the spec allows a piece to overhang by up to 2 mm into
    cells with one layer less; the current cut list uses exact runs only.
-4. **Polish** — lazy tabs for the 727 kB bundle (Vite warning), PWA icons,
+3. **Polish** — lazy tabs for the 1.2 MB bundle (Vite warning), PWA icons,
    optional `migrate` cleanup.
 
 ## Expanding `mesh_min` / `mesh_max` (printer.cfg)
@@ -311,7 +326,7 @@ the app. To try a larger one:
 5. Load the new mesh in bedshim. Measured edge data beats nearest-edge
    extrapolation, and `Extend to plate edges` then adds fewer extrapolated cells.
    If the mesh now covers the whole plate, the extension switch has nothing to
-   add and the lattice stays tight.
+   add: the 6 mm label border stays and the labels still print.
 
 Caution: changing the mesh bounds shifts/reshapes the cell grid. A plan applied
 before the change no longer maps onto the new grid; expand **before** taping, or
@@ -322,7 +337,7 @@ edits `printer.cfg`.
 
 ```bash
 npm run dev        # or: npm run dev -- --host 0.0.0.0 --port 5173
-npm test           # 117 tests, node environment
+npm test           # 119 tests, node environment
 npm run typecheck  # tsc --noEmit
 npm run build      # dist/, offline reload verified in Chromium
 npm run cli -- parse fixtures/neptune4-mesh.cfg
@@ -338,14 +353,16 @@ The phone checks use `http://<LAN IP>:5173`; the dev server is started with
   makes the first fit wrong (the history has no way to enter an initial state yet).
 - Peel is allowed by the model but the planner never proposes it; the diff screen
   shows add/peel against the physical state.
-- `Extend to plate edges` is owner-reported as not working well; the extended
-  lattice has no numbers/letters. Needs reproduction and a labels design before
-  it is considered done.
-- Extended plans produce partial edge strips (2 / 5 / 10 / 25 mm) and a very
-  different reference; the cut list warns to trim, but the UX needs a decision.
+- `Extend to plate edges` keeps a 6 mm solid label border at the plate edge, so
+  the plan does not tape that last 6 mm. The alternative is a lattice without
+  numbers/letters in that mode.
+- Extended plans still move the reference (0.0499 mm on the fixture); the 36
+  stretched edge cells include extrapolated area. The cut list keeps the 20 mm
+  tape width by cutting normal columns front→back and stretching edge columns
+  across their rows; only the corners `J1`/`J10` split (2 × 18.5 mm).
 - Calibration pairs depend on the recorded layer states: changing tape width,
   extension, percentile or rounding between planning and measuring makes the pair
   inconsistent; the app refuses it (R² guard) instead of guessing.
-- Bundle 727 kB (235 kB gzip) with Vite's chunk warning; no PWA icons; the 3D view
+- Bundle ~1.2 MB (387 kB gzip) with Vite's chunk warning; no PWA icons; the 3D view
   has no zoom; project data lives only in localStorage (no JSON export yet).
 - `meshSign` remains a core option for tests/foreign imports, not exposed in the UI.

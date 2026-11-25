@@ -101,6 +101,12 @@ The mesh rectangle covers less than the plate (e.g. 200×190 of 235×235).
 Outside it, values are extrapolation. Cells whose center lies outside the mesh
 bounds are flagged `unprobed` and default to **no tape**.
 
+The plan can extend into the margin (`extendToPlate`). A 6 mm solid border stays
+at the plate edge so the printable lattice has room for its numbers and letters;
+the outer row and column are stretched to it, so the cell ids and the matrix keep
+their shape and no clipped 2 mm sliver is created. A row taller than the tape is
+covered by several side-by-side strips.
+
 ---
 
 ## 2. Conventions — the dangerous part
@@ -476,16 +482,31 @@ generated in tests and planned correctly.
 
 ## 8. Strip plan and cut list
 
-### 8.1 Rows are independent
+### 8.1 Strips are one tape width wide
 
-A strip is exactly `w` wide, so it can never cover two rows. Rectangle cover
-degenerates to 1-D per row — no NP-hard solver, no heuristics, no ambiguity:
+A strip's width is one cell dimension, and a cut can never be wider than the
+roll `w`. In the normal grid every row is about `w` tall, so a level's
+contiguous run along the row becomes one piece. With `extendToPlate` the outer
+row and column are stretched, so the direction is chosen per side:
+
+- a normal (not stretched) column is exactly `w` wide → cut front→back along
+  the column; the stretched front/back rows are just part of its length;
+- the stretched left/right column is wider than `w` → its cells are cut across
+  their row, where a normal row is one `w` tall;
+- only the four corners, where a stretched row meets a stretched column, have
+  both dimensions over `w`; they are covered by equal strips side by side.
+
+The cut width is therefore `w` everywhere except the four corners, and a row
+taller than the roll never forces a 17 mm strip:
 
 ```
 for level k in 1..maxLayers:
-  for each row r:
-    runs = maximal intervals of cells with layers[r][c] >= k
-    each run -> one piece
+  if not extended:
+    for each row r: runs along the row -> one piece each
+  else:
+    for each normal column c: runs along the column -> one piece each
+    for each stretched column c, row r: covered cell -> one row piece
+  a piece whose cross dimension > w -> ceil(dim / w) equal strips across
 ```
 
 Levels are nested (`S_k ⊇ S_{k+1}`), so piece at level `k` always lands on top of
@@ -496,8 +517,9 @@ level `k-1` — the instruction is simply "level 1 first, then level 2".
 into cells with `layers == k-1`; that overhang is smaller than the deadband.
 
 ```ts
-type Piece = { level: number; row: number; c0: number; c1: number;
-               width: number; length: number; labels: string };
+type Piece = { level: number; orient: 'row' | 'column'; line: number;
+               from: number; to: number;
+               width: number; length: number; label: string };
 ```
 
 ### 8.2 Batching (required)

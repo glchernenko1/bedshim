@@ -135,6 +135,56 @@ function pixelLabelHoles(text: string, centreX: number, centreY: number, height 
   return holes
 }
 
+/** A solid strip between the cell grid and the sheet edge: [low, high]. */
+type Band = readonly [number, number]
+
+/**
+ * Column numbers on the top/bottom bands and row letters on the left/right
+ * bands. A side whose band is too narrow for the glyph is simply skipped, so
+ * the same helper serves the framed design (labels in the cell rim) and the
+ * extended tight sheet (labels in the plate border).
+ */
+function cellLabelHoles(
+  grid: Grid,
+  labelHeight: number,
+  bands: { top?: Band; bottom?: Band; left?: Band; right?: Band },
+): Polygon[] {
+  if (labelHeight <= 2.5) return []
+  const columns = new Map<number, number>()
+  for (const cell of grid.cells) {
+    if (!columns.has(cell.col)) columns.set(cell.col, (cell.x0 + cell.x1) / 2)
+  }
+  const rows = new Map<number, { centreY: number; label: string }>()
+  for (const cell of grid.cells) {
+    if (!rows.has(cell.row)) {
+      rows.set(cell.row, {
+        centreY: (cell.y0 + cell.y1) / 2,
+        label: cell.label.replace(/\d+$/, ''),
+      })
+    }
+  }
+  const holes: Polygon[] = []
+  const numbers = (band: Band): void => {
+    if (band[1] - band[0] < labelHeight + 0.8) return
+    const centreY = (band[0] + band[1]) / 2
+    for (const [col, centreX] of columns) {
+      holes.push(...pixelLabelHoles(String(col + 1), centreX, centreY, labelHeight))
+    }
+  }
+  const letters = (band: Band): void => {
+    if (band[1] - band[0] < labelHeight * 0.7) return
+    const centreX = (band[0] + band[1]) / 2
+    for (const { centreY, label } of rows.values()) {
+      holes.push(...pixelLabelHoles(label, centreX, centreY, labelHeight))
+    }
+  }
+  if (bands.top) numbers(bands.top)
+  if (bands.bottom) numbers(bands.bottom)
+  if (bands.left) letters(bands.left)
+  if (bands.right) letters(bands.right)
+  return holes
+}
+
 /** Arrow cut in the front margin of a plate-sized sheet. */
 function frontArrow(plateW: number, margin: number): Polygon | null {
   if (margin < 2.5) return null
@@ -189,20 +239,39 @@ function buildSimple(
   mode: 'grid' | 'plate',
   margin: number,
   front: boolean,
+  labels: boolean,
 ): Shape | null {
   const plate = grid.plate
   const cells = cellBounds(grid)
-  const sheet: Rect =
-    mode === 'plate'
-      ? { x0: 0, y0: 0, x1: plate.w, y1: plate.h }
-      : {
-          x0: Math.max(0, cells.x0 - margin),
-          y0: Math.max(0, cells.y0 - margin),
-          x1: Math.min(plate.w, cells.x1 + margin),
-          y1: Math.min(plate.h, cells.y1 + margin),
-        }
+  // An extended grid already reaches the label border; the sheet is the plate,
+  // so the border becomes the printable space for numbers and letters.
+  const fullPlate = mode === 'plate' || grid.extendToPlate
+  const sheet: Rect = fullPlate
+    ? { x0: 0, y0: 0, x1: plate.w, y1: plate.h }
+    : {
+        x0: Math.max(0, cells.x0 - margin),
+        y0: Math.max(0, cells.y0 - margin),
+        x1: Math.min(plate.w, cells.x1 + margin),
+        y1: Math.min(plate.h, cells.y1 + margin),
+      }
   if (sheet.x1 - sheet.x0 < 1 || sheet.y1 - sheet.y0 < 1) return null
-  const cutouts = [...holes]
+  const labelHoles: Polygon[] = []
+  if (labels && grid.extendToPlate) {
+    const bands = {
+      top: [cells.y1, sheet.y1] as Band,
+      bottom: [sheet.y0, cells.y0] as Band,
+      left: [sheet.x0, cells.x0] as Band,
+      right: [cells.x1, sheet.x1] as Band,
+    }
+    const widest = Math.max(
+      bands.top[1] - bands.top[0],
+      bands.bottom[1] - bands.bottom[0],
+      bands.left[1] - bands.left[0],
+      bands.right[1] - bands.right[0],
+    )
+    labelHoles.push(...cellLabelHoles(grid, Math.min(5, widest - 0.8), bands))
+  }
+  const cutouts = [...holes, ...labelHoles]
   if (front) {
     const marker =
       mode === 'plate' ? frontArrow(sheet.x1 - sheet.x0, grid.meshBounds.minY) : edgeNotch(sheet)
@@ -253,37 +322,14 @@ function buildFrame(
   const labelHoles: Polygon[] = []
   if (style.labels) {
     const labelHeight = Math.min(5, rim - 0.8)
-    const topRim = rimRect.y1 - cells.y1
-    const bottomRim = cells.y0 - rimRect.y0
-    const leftRim = cells.x0 - rimRect.x0
-    const rightRim = rimRect.x1 - cells.x1
-    const columns = new Map<number, number>()
-    for (const cell of grid.cells) {
-      if (!columns.has(cell.col)) columns.set(cell.col, (cell.x0 + cell.x1) / 2)
-    }
-    const rows = new Map<number, { centreY: number; label: string }>()
-    for (const cell of grid.cells) {
-      if (!rows.has(cell.row)) {
-        rows.set(cell.row, {
-          centreY: (cell.y0 + cell.y1) / 2,
-          label: cell.label.replace(/\d+$/, ''),
-        })
-      }
-    }
-    const addNumbers = (centreY: number): void => {
-      for (const [col, centreX] of columns) {
-        labelHoles.push(...pixelLabelHoles(String(col + 1), centreX, centreY, labelHeight))
-      }
-    }
-    const addLetters = (centreX: number): void => {
-      for (const { centreY, label } of rows.values()) {
-        labelHoles.push(...pixelLabelHoles(label, centreX, centreY, labelHeight))
-      }
-    }
-    if (labelHeight > 2.5 && topRim >= labelHeight + 0.8) addNumbers(cells.y1 + topRim / 2)
-    if (labelHeight > 2.5 && bottomRim >= labelHeight + 0.8) addNumbers(cells.y0 - bottomRim / 2)
-    if (labelHeight > 2.5 && leftRim >= labelHeight * 0.7) addLetters(rimRect.x0 + leftRim / 2)
-    if (labelHeight > 2.5 && rightRim >= labelHeight * 0.7) addLetters(cells.x1 + rightRim / 2)
+    labelHoles.push(
+      ...cellLabelHoles(grid, labelHeight, {
+        top: [cells.y1, rimRect.y1],
+        bottom: [rimRect.y0, cells.y0],
+        left: [rimRect.x0, cells.x0],
+        right: [cells.x1, rimRect.x1],
+      }),
+    )
   }
 
   const inner = difference(
@@ -344,7 +390,11 @@ export function buildLattice(grid: Grid, style: LatticeStyle = {}): LatticeResul
   const holes = cellHoles(grid, wallThickness)
   const cells = cellBounds(grid)
   const margins = [cells.x0, cells.y0, plate.w - cells.x1, plate.h - cells.y1]
-  const useFrame = outlineMode === 'frame' || (outlineMode === 'auto' && Math.max(...margins) > 5)
+  // In extended mode the cells already sit on the label border, so there is no
+  // room for a separate frame + gap + rim: the plate sheet carries the labels.
+  const useFrame =
+    !grid.extendToPlate &&
+    (outlineMode === 'frame' || (outlineMode === 'auto' && Math.max(...margins) > 5))
 
   const resolved: Required<LatticeStyle> = {
     wallThickness,
@@ -360,8 +410,8 @@ export function buildLattice(grid: Grid, style: LatticeStyle = {}): LatticeResul
   }
 
   const shape = useFrame
-    ? (buildFrame(grid, holes, resolved) ?? buildSimple(grid, holes, 'grid', margin, front))
-    : buildSimple(grid, holes, outlineMode === 'plate' ? 'plate' : 'grid', margin, front)
+    ? (buildFrame(grid, holes, resolved) ?? buildSimple(grid, holes, 'grid', margin, front, labels))
+    : buildSimple(grid, holes, outlineMode === 'plate' ? 'plate' : 'grid', margin, front, labels)
 
   if (!shape) {
     return {

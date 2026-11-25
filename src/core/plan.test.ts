@@ -196,7 +196,7 @@ describe('plan — extended margin', () => {
   it('plans the margin from the nearest edge and warns about it', () => {
     const { surface, grid } = extendedSetup()
     const result = plan({ surface, grid, material, referencePercentile: 0.85, rounding: 'round' })
-    expect(result.stats.extrapolated).toBe(82)
+    expect(result.stats.extrapolated).toBe(36)
     expect(result.warnings.map((warning) => warning.code)).toContain('plan.notice.extrapolated')
     expect(result.warnings.map((warning) => warning.code)).not.toContain('plan.notice.unprobed')
     expect(result.stats.totalLayers).toBeGreaterThan(112)
@@ -205,13 +205,47 @@ describe('plan — extended margin', () => {
     expect(result.cells.find((cell) => cell.row === 0 && cell.col === 3)?.extrapolated).toBe(true)
   })
 
-  it('cuts partial edge pieces at their real width and length', () => {
+  it('mixes rows and columns so the cut width stays at the tape width', () => {
     const { surface, grid } = extendedSetup()
     const result = plan({ surface, grid, material, referencePercentile: 0.85, rounding: 'round' })
     const strips = buildStrips(result)
-    const bottom = strips.pieces.find((piece) => piece.label === 'A4–A11')
-    expect(bottom).toMatchObject({ width: 2, length: 160 })
-    expect(strips.pieces.length).toBeGreaterThan(22)
+    // Interior columns are exactly 20 mm wide, so they are cut front→back;
+    // the stretched rows A/J are just part of the strip's length.
+    expect(strips.pieces.find((piece) => piece.label === 'A3–J3')).toMatchObject({
+      orient: 'column',
+      width: 20,
+      length: 223,
+      acrossCount: 1,
+    })
+    // The stretched left/right columns are wider than the roll, so their cells
+    // are cut across the row instead (a normal row is one tape width tall).
+    expect(strips.pieces.find((piece) => piece.label === 'I1')).toMatchObject({
+      orient: 'row',
+      width: 20,
+      length: 24,
+    })
+    expect(strips.pieces.find((piece) => piece.label === 'I10')).toMatchObject({
+      orient: 'row',
+      width: 20,
+      length: 39,
+    })
+    // Only the corners change width: the back row is 37 mm tall.
+    expect(strips.pieces.find((piece) => piece.label === 'J1 (1/2)')).toMatchObject({
+      width: 18.5,
+      length: 24,
+      acrossCount: 2,
+    })
+    expect(strips.pieces.find((piece) => piece.label === 'J10 (1/2)')).toMatchObject({
+      width: 18.5,
+      length: 39,
+      acrossCount: 2,
+    })
+    expect(
+      strips.pieces
+        .filter((piece) => piece.width !== 20)
+        .every((piece) => piece.label.startsWith('J1') || piece.label.startsWith('J10')),
+    ).toBe(true)
+    expect(strips.pieces.length).toBe(32)
   })
 })
 

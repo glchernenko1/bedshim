@@ -84,32 +84,51 @@ describe('buildGrid', () => {
     expect(() => fixtureGrid({ tapeWidth: 0 })).toThrowError(RangeError)
   })
 
-  it('extends margin cells to the plate edges on request', () => {
+  it('stretches the outer cells into the margin instead of adding slivers', () => {
     const grid = fixtureGrid({ extendToPlate: true })
-    expect(grid.cols).toBe(13)
-    expect(grid.rows).toBe(14)
-    expect(grid.cells).toHaveLength(182)
+    // The probed 10×10 grid keeps its ids and matrix shape; only its outer
+    // boundary moves to the 6 mm label border.
+    expect(grid.cols).toBe(10)
+    expect(grid.rows).toBe(10)
+    expect(grid.cells).toHaveLength(100)
     expect(grid.cells[0]).toMatchObject({
       id: 'A1',
-      x0: 0,
-      x1: 10,
-      y0: 0,
-      y1: 2,
-      unprobed: true,
-      partial: true,
+      x0: 6,
+      x1: 30,
+      y0: 6,
+      y1: 40,
+      unprobed: false,
+      partial: false,
+      stretched: true,
     })
     expect(grid.cells[grid.cells.length - 1]).toMatchObject({
-      id: 'N13',
-      x0: 230,
-      x1: 235,
-      y0: 230,
-      y1: 235,
-      unprobed: true,
-      partial: true,
+      id: 'J10',
+      x0: 190,
+      x1: 229,
+      y0: 192,
+      y1: 229,
+      unprobed: false,
+      partial: false,
+      stretched: true,
     })
-    // The original measured cell at (10..30, 21..40) is still present, just relabelled.
-    expect(grid.cells.find((cell) => cell.x0 === 10 && cell.y0 === 21 && cell.x1 === 30 && cell.y1 === 40)?.id).toBe('C2')
-    expect(grid.cells.filter((cell) => cell.unprobed)).toHaveLength(82)
+    // A cell inside the probed rectangle is untouched.
+    expect(grid.cells.find((cell) => cell.id === 'B2')).toMatchObject({
+      x0: 30,
+      x1: 50,
+      y0: 40,
+      y1: 59,
+      stretched: false,
+    })
+    expect(grid.cells.filter((cell) => cell.stretched)).toHaveLength(36)
+    expect(grid.cells.filter((cell) => cell.partial)).toHaveLength(0)
     expect(grid.extendToPlate).toBe(true)
+  })
+
+  it('has no cell smaller than one normal step in extended mode', () => {
+    const grid = fixtureGrid({ extendToPlate: true })
+    for (const cell of grid.cells) {
+      expect(cell.x1 - cell.x0).toBeGreaterThanOrEqual(20 - 1e-9)
+      expect(cell.y1 - cell.y0).toBeGreaterThanOrEqual(19 - 1e-9)
+    }
   })
 })

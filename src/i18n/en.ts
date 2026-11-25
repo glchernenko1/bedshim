@@ -31,8 +31,9 @@ export const en: Record<string, string> = {
   'plan.field.maxLayers': 'Max layers',
   'plan.field.extend': 'Extend to plate edges',
   'plan.extend.warning.title': 'Margin is extrapolated',
-  'plan.extend.warning.body': 'Cells outside the probed mesh repeat the nearest edge value. Enable only if the plate edge matters.',
-  'plan.notice.extrapolated': '{count} margin cells are extrapolated from the nearest edge.',
+  'plan.extend.warning.body':
+    'The outer row and column stretch to a 6 mm border at the plate edge, so their values follow the nearest measured edge. The border is where the lattice cuts its numbers and letters; no extra thin cells are added.',
+  'plan.notice.extrapolated': '{count} edge cells reach into the unprobed margin; their values follow the nearest measured edge.',
   'plan.baseMismatch.title': 'Stored tape state has a different grid',
   'plan.baseMismatch.body':
     'The layer count recorded for this measurement does not match the current grid (tape width or margin extension changed). It is treated as a bare bed; apply a plan from this grid before the next measurement.',
@@ -75,7 +76,8 @@ export const en: Record<string, string> = {
   'strips.level': 'Level {level}',
   'strips.batch': 'Cut {count} × {width}×{length} mm:',
   'strips.place': 'place at {cells}',
-  'strips.order': 'Levels bottom-up; inside a level front→back and left→right.',
+  'strips.order':
+    'Levels bottom-up; inside a level front→back and left→right. A strip follows the cell side that is one tape width; only the four corners are split.',
   'strips.empty': 'No tape needed: every cell is inside the deadband.',
   'strips.print': 'Print cut list',
   'strips.print.meta': '{pieces} pieces · {length} mm of {width} mm tape · {levels} levels',
@@ -188,7 +190,7 @@ export const en: Record<string, string> = {
   'lattice.outline.plate': 'Solid plate',
   'lattice.field.margin': 'Border, mm',
   'lattice.field.hint':
-    'Auto uses a frame + bridges when the measured grid is inset by more than 5 mm, and a tight grid when it is close to the edge. Numbers are cut into the back and front rims, letters into the left and right rims; where the gap is too narrow the rim fuses to the frame instead of leaving a tiny bridge.',
+    'Auto uses a frame + bridges when the measured grid is inset by more than 5 mm. Numbers are cut into the back and front rims, letters into the left and right rims; where the gap is too narrow the rim fuses to the frame instead of leaving a tiny bridge. With Extend to plate edges the sheet is the full plate, the outer cells stretch to a 6 mm border, and the labels are cut into that border.',
   'lattice.stats.triangles': 'Triangles',
   'lattice.stats.volume': 'Volume',
   'lattice.stats.weight': 'Estimated weight',
@@ -201,7 +203,7 @@ export const en: Record<string, string> = {
   'lattice.note.lattice.body':
     'Print in a light filament with a 0.4 mm nozzle, 3 layers at 0.2 and no infill. Put the sheet on the magnetic bed, fill the holes with tape, then lift it off.',
   'lattice.note.outline':
-    'The default full-plate STL is a thin frame, a cut-out gap and four rounded bridges per side to the lattice. If the plan reaches the plate edge, Auto switches to a tight grid.',
+    'The default full-plate STL is a thin frame, a cut-out gap and four rounded bridges per side to the lattice. With Extend to plate edges the sheet keeps the full plate and cuts the labels into a 6 mm solid border; the outer cells stretch to it.',
   'lattice.warn.notClosed': 'The lattice is not closed ({edges} bad edges); adjust the wall thickness.',
   'lattice.warn.disconnected': 'The lattice has {parts} disconnected parts.',
 

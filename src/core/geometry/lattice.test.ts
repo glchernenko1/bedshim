@@ -122,7 +122,7 @@ describe('buildLattice — explicit shapes', () => {
     expect(lattice.manifold.box.maxY).toBeCloseTo(194, 6)
   })
 
-  it('drops the frame when the plan is extended to the plate edges', () => {
+  it('keeps the plate sheet and label border when the plan is extended', () => {
     const { mesh } = parseMesh(fixture)
     const grid = buildGrid({
       plate: { w: 235, h: 235 },
@@ -138,7 +138,27 @@ describe('buildLattice — explicit shapes', () => {
     expect(lattice.manifold.connected).toBe(true)
     expect(lattice.manifold.box.minX).toBeCloseTo(0, 6)
     expect(lattice.manifold.box.maxX).toBeCloseTo(235, 6)
-    expect(lattice.manifold.volume).toBeLessThan(5_000)
+    // The border carries the labels, so the sheet is still fairly light.
+    expect(lattice.manifold.volume).toBeLessThan(7_000)
+    expect(lattice.style.labels).toBe(true)
+  })
+
+  it('keeps the extended labels even when the frame design is forced', () => {
+    const { mesh } = parseMesh(fixture)
+    const grid = buildGrid({
+      plate: { w: 235, h: 235 },
+      meshBounds: mesh.bounds!,
+      tapeWidth: 20,
+      meshXCount: mesh.xCount,
+      meshYCount: mesh.yCount,
+      extendToPlate: true,
+    })
+    const withLabels = buildLattice(grid, { outline: 'frame', labels: true })
+    const without = buildLattice(grid, { outline: 'frame', labels: false })
+    expect(withLabels.framed).toBe(false)
+    expect(withLabels.manifold.closed).toBe(true)
+    // Label glyphs are extra holes, so the labelled sheet has less material.
+    expect(withLabels.manifold.volume).toBeLessThan(without.manifold.volume)
   })
 })
 

@@ -89,8 +89,12 @@ function makeLiftField(
   const kernel: Kernel[] = []
   grid.cells.forEach((cell) => {
     const layersHere = layers[cell.row]?.[cell.col] ?? 0
-    // Cells outside the mesh are planned as 0, so they simply add no lift.
-    kernel.push({ weight: 0, lift: cell.unprobed ? 0 : lift(material, layersHere) })
+    // Cells outside the mesh are planned as 0 unless the plan extends into the
+    // margin, where their tape still lifts the plate.
+    kernel.push({
+      weight: 0,
+      lift: cell.unprobed && !grid.extendToPlate ? 0 : lift(material, layersHere),
+    })
   })
   const centres = grid.cells.map((cell) => ({
     x: (cell.x0 + cell.x1) / 2,
@@ -148,7 +152,8 @@ export function predict(options: ForwardOptions): ForwardResult {
   for (const cell of grid.cells) {
     const stats = cellStats(surface, cell, cellSamples)
     const height = heightOf(stats.mean, meshSign)
-    const plannedLift = cell.unprobed ? 0 : lift(material, layers[cell.row]?.[cell.col] ?? 0)
+    const plannedLift =
+      cell.unprobed && !grid.extendToPlate ? 0 : lift(material, layers[cell.row]?.[cell.col] ?? 0)
     const cx = (cell.x0 + cell.x1) / 2
     const cy = (cell.y0 + cell.y1) / 2
     const effectiveLift = liftAt(cx, cy)

@@ -1,8 +1,5 @@
 import { useMemo, useState } from 'react'
 import { Alert, Button, Card, Descriptions, Dropdown, Input, Popconfirm, Space, Tag, Typography } from 'antd'
-import exampleOriginal from '../../fixtures/neptune4-mesh.block?raw'
-import examplePass1 from '../../fixtures/test-after-pass1.cfg?raw'
-import examplePass2 from '../../fixtures/test-after-pass2.cfg?raw'
 import { CoreError } from '../core/errors'
 import { createSurface } from '../core/mesh/interpolate'
 import { parseMesh } from '../core/mesh/parse'
@@ -39,10 +36,17 @@ export function MeshTab() {
   const parsed = selected?.mesh ?? null
   const profiles = selected?.profiles ?? []
 
+  // Examples are a development aid: the production build (GitHub Pages) ships
+  // without the fixtures and without the picker. `import.meta.env.DEV` folds to
+  // false in the build, so the dynamic import is dropped as well.
   const loadExample = (key: string) => {
-    const source = key === '2' ? examplePass1 : key === '3' ? examplePass2 : exampleOriginal
-    setText(source)
-    runParse(source)
+    if (!import.meta.env.DEV) return
+    void import('../dev/examples').then(({ EXAMPLES, isExampleKey }) => {
+      if (!isExampleKey(key)) return
+      const source = EXAMPLES[key]
+      setText(source)
+      runParse(source)
+    })
   }
 
   const runParse = (source: string) => {
@@ -92,19 +96,21 @@ export function MeshTab() {
             <Button type="primary" onClick={() => runParse(text)}>
               {t('mesh.button.parse')}
             </Button>
-            <Dropdown
-              trigger={['click']}
-              menu={{
-                items: [
-                  { key: '1', label: t('mesh.example.1') },
-                  { key: '2', label: t('mesh.example.2') },
-                  { key: '3', label: t('mesh.example.3') },
-                ],
-                onClick: ({ key }) => loadExample(key),
-              }}
-            >
-              <Button>{t('mesh.button.example')}</Button>
-            </Dropdown>
+            {import.meta.env.DEV && (
+              <Dropdown
+                trigger={['click']}
+                menu={{
+                  items: [
+                    { key: '1', label: t('mesh.example.1') },
+                    { key: '2', label: t('mesh.example.2') },
+                    { key: '3', label: t('mesh.example.3') },
+                  ],
+                  onClick: ({ key }) => loadExample(key),
+                }}
+              >
+                <Button>{t('mesh.button.example')}</Button>
+              </Dropdown>
+            )}
             <Button
               onClick={() => {
                 setText('')

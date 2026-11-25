@@ -38,13 +38,13 @@ describe('buildStrips — Appendix A', () => {
   })
 
   it('splits runs per level exactly as the cut list in the spec', () => {
-    const rowA = strips.pieces.filter((piece) => piece.row === 0)
+    const rowA = strips.pieces.filter((piece) => piece.orient === 'row' && piece.line === 0)
     expect(rowA.map((piece) => [piece.level, piece.label, piece.length])).toEqual([
       [1, 'A3–A9', 140],
       [2, 'A4–A8', 100],
       [3, 'A7', 20],
     ])
-    const rowB = strips.pieces.filter((piece) => piece.row === 1)
+    const rowB = strips.pieces.filter((piece) => piece.orient === 'row' && piece.line === 1)
     expect(rowB.map((piece) => [piece.level, piece.label, piece.length])).toEqual([
       [1, 'B3–B9', 140],
       [2, 'B6–B8', 60],
@@ -70,14 +70,17 @@ describe('buildStrips — Appendix A', () => {
 describe('batchCut', () => {
   const piece = (level: number, length: number, label: string): StripPiece => ({
     level,
-    row: 0,
-    c0: 0,
-    c1: length / 20 - 1,
+    orient: 'row',
+    line: 0,
+    from: 0,
+    to: length / 20 - 1,
     width: 20,
     length,
     label,
     cells: [label],
     partial: false,
+    acrossIndex: 1,
+    acrossCount: 1,
   })
 
   it('groups equal dimensions and accumulates counts', () => {

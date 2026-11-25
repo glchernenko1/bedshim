@@ -17,6 +17,11 @@ export interface Cell {
   unprobed: boolean
   /** Clipped by the plate edge, so it cannot be covered by one full-width strip. */
   partial: boolean
+  /**
+   * The cell was stretched past the probed rectangle because the plan extends
+   * into the margin. Its mean includes extrapolated area.
+   */
+  stretched: boolean
 }
 
 export interface Grid {
@@ -40,11 +45,19 @@ export interface GridOptions {
   meshXCount: number
   meshYCount: number
   /**
-   * Add margin rows and columns up to the plate edges. Cells outside the mesh
-   * are still marked `unprobed`; the planner decides whether to tape them.
+   * Stretch the outer row and column of the grid into the margin toward the
+   * plate edges instead of adding extra margin cells. Keeps the base cell ids
+   * and avoids 2–15 mm slivers.
    */
   extendToPlate?: boolean
 }
+
+/**
+ * Solid band left at the plate edge when the plan is extended. The printable
+ * lattice needs it for the row/column labels: with cells reaching the very edge
+ * there is no material left to cut numbers and letters into.
+ */
+export const EXTEND_LABEL_BORDER = 6
 
 /** 0 → A, 25 → Z, 26 → AA (SPEC §3 letters rows front→back). */
 export function rowLabel(index: number): string {
@@ -73,25 +86,36 @@ export function buildGrid(options: GridOptions): Grid {
   const rowSpacing = meshYCount > 1 ? spanY / (meshYCount - 1) : spanY
   const baseCols = Math.max(1, Math.ceil(spanX / tapeWidth - 1e-9))
   const baseRows = Math.max(1, Math.ceil(spanY / rowSpacing - 1e-9))
-  const leftCols = extendToPlate ? Math.max(0, Math.ceil(meshBounds.minX / tapeWidth - 1e-9)) : 0
-  const rightSpace = plate.w - (meshBounds.minX + baseCols * tapeWidth)
-  const rightCols = extendToPlate ? Math.max(0, Math.ceil(rightSpace / tapeWidth - 1e-9)) : 0
-  const bottomRows = extendToPlate ? Math.max(0, Math.ceil(meshBounds.minY / rowSpacing - 1e-9)) : 0
-  const topSpace = plate.h - (meshBounds.minY + baseRows * rowSpacing)
-  const topRows = extendToPlate ? Math.max(0, Math.ceil(topSpace / rowSpacing - 1e-9)) : 0
-  const cols = Math.max(1, leftCols + baseCols + rightCols)
-  const rows = Math.max(1, bottomRows + baseRows + topRows)
-  const originX = meshBounds.minX - leftCols * tapeWidth
-  const originY = meshBounds.minY - bottomRows * rowSpacing
+
+  const baseX1 = meshBounds.minX + baseCols * tapeWidth
+  const baseY1 = meshBounds.minY + baseRows * rowSpacing
+
+  // The probed grid stays as it is; extension only moves its outer boundary to
+  // the label border. The edge cells become rectangles, the cell ids and the
+  // layer matrix dimensions do not change.
+  const planX0 = extendToPlate ? Math.min(EXTEND_LABEL_BORDER, meshBounds.minX) : meshBounds.minX
+  const planX1 = extendToPlate ? Math.max(plate.w - EXTEND_LABEL_BORDER, baseX1) : baseX1
+  const planY0 = extendToPlate ? Math.min(EXTEND_LABEL_BORDER, meshBounds.minY) : meshBounds.minY
+  const planY1 = extendToPlate ? Math.max(plate.h - EXTEND_LABEL_BORDER, baseY1) : baseY1
+
+  const xBreaks: number[] = [planX0]
+  for (let col = 1; col < baseCols; col++) xBreaks.push(meshBounds.minX + col * tapeWidth)
+  xBreaks.push(planX1)
+  const yBreaks: number[] = [planY0]
+  for (let row = 1; row < baseRows; row++) yBreaks.push(meshBounds.minY + row * rowSpacing)
+  yBreaks.push(planY1)
+
+  const cols = Math.max(1, xBreaks.length - 1)
+  const rows = Math.max(1, yBreaks.length - 1)
 
   const cells: Cell[] = []
   let partial = 0
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      const rawX0 = originX + col * tapeWidth
-      const rawX1 = rawX0 + tapeWidth
-      const rawY0 = originY + row * rowSpacing
-      const rawY1 = rawY0 + rowSpacing
+      const rawX0 = xBreaks[col]!
+      const rawX1 = xBreaks[col + 1]!
+      const rawY0 = yBreaks[row]!
+      const rawY1 = yBreaks[row + 1]!
       const x0 = Math.max(0, Math.min(rawX0, plate.w))
       const x1 = Math.max(0, Math.min(rawX1, plate.w))
       const y0 = Math.max(0, Math.min(rawY0, plate.h))
@@ -105,6 +129,12 @@ export function buildGrid(options: GridOptions): Grid {
         centreX > meshBounds.maxX ||
         centreY < meshBounds.minY ||
         centreY > meshBounds.maxY
+      const stretched =
+        extendToPlate &&
+        (rawX0 < meshBounds.minX - 1e-9 ||
+          rawX1 > meshBounds.maxX + 1e-9 ||
+          rawY0 < meshBounds.minY - 1e-9 ||
+          rawY1 > meshBounds.maxY + 1e-9)
       const label = `${rowLabel(row)}${col + 1}`
       cells.push({
         id: label,
@@ -117,6 +147,7 @@ export function buildGrid(options: GridOptions): Grid {
         y1,
         unprobed,
         partial: clipped,
+        stretched,
       })
     }
   }

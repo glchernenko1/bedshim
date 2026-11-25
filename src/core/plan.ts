@@ -303,7 +303,7 @@ export function plan(options: PlanOptions): Plan {
       // The deadband belongs to what is still missing, not to the absolute stack.
       const wanted = needed < deadband ? base : wantedAbsolute
       const idealWanted = quantize(absolute, material, { deadband: 0, maxLayers: 64, rounding })
-      const extrapolatedCell = cell.unprobed && grid.extendToPlate
+      const extrapolatedCell = (cell.unprobed || cell.stretched) && grid.extendToPlate
       const layers = cell.unprobed && !extrapolatedCell ? 0 : wanted
       const width = cell.x1 - cell.x0
       const cellHeight = cell.y1 - cell.y0

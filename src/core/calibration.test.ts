@@ -1,0 +1,204 @@
+import { describe, expect, it } from 'vitest'
+import {
+  autoCalibration,
+  calibrationProblem,
+  calibrationValues,
+  fitCalibrationPair,
+  lastPair,
+  type CalibrationMeasurement,
+  type CalibrationPlan,
+} from './calibration'
+import { buildGrid } from './grid'
+import { DEFAULT_MATERIAL, type Material } from './material'
+import { createSurface } from './mesh/interpolate'
+import type { Mesh } from './mesh/types'
+import { plan } from './plan'
+
+const bounds = { minX: 10, maxX: 210, minY: 21, maxY: 211 }
+const TRUE_MATERIAL: Material = { nominal: 0.05, t1: 0.025, ts: 0.04, calibrated: true }
+
+function grid() {
+  return buildGrid({ plate: { w: 235, h: 235 }, meshBounds: bounds, tapeWidth: 20, meshXCount: 11, meshYCount: 11 })
+}
+
+function flatMesh(value: number): Mesh {
+  return {
+    name: 'flat',
+    version: 1,
+    xCount: 11,
+    yCount: 11,
+    points: Array.from({ length: 11 }, () => new Array<number>(11).fill(value)),
+    bounds,
+    algo: 'bicubic',
+    tension: 0.2,
+    meshXPps: 4,
+    meshYPps: 4,
+    source: 'block',
+    inferred: { counts: false, bounds: false, algo: false, tension: false, pps: false },
+    ignoredKeys: [],
+    notices: [],
+  }
+}
+
+/** Nested bands: 1 layer across the middle, 2 in a narrower band, 3 in the centre. */
+function layerPattern(): number[][] {
+  const layers = Array.from({ length: 10 }, () => new Array<number>(10).fill(0))
+  for (let row = 0; row < 10; row++) {
+    for (let col = 0; col < 10; col++) {
+      if (col >= 2 && col <= 7) layers[row]![col] = 1
+      if (col >= 3 && col <= 6) layers[row]![col] = 2
+      if (col >= 4 && col <= 5) layers[row]![col] = 3
+    }
+  }
+  return layers
+}
+
+function blurredLiftAt(x: number, y: number, layers: number[][], sigma: number): number {
+  const g = grid()
+  const inv = 1 / (2 * sigma * sigma)
+  let sum = 0
+  let weight = 0
+  for (const cell of g.cells) {
+    const dx = (cell.x0 + cell.x1) / 2 - x
+    const dy = (cell.y0 + cell.y1) / 2 - y
+    const w = Math.exp(-(dx * dx + dy * dy) * inv)
+    const n = layers[cell.row]?.[cell.col] ?? 0
+    const lift = n === 0 ? 0 : TRUE_MATERIAL.t1 + (n - 1) * TRUE_MATERIAL.ts!
+    sum += w * lift
+    weight += w
+  }
+  return weight > 0 ? sum / weight : 0
+}
+
+function meshFromField(layers: number[][], sigma: number): Mesh {
+  const points: number[][] = []
+  for (let row = 0; row < 11; row++) {
+    const y = bounds.minY + (row / 10) * (bounds.maxY - bounds.minY)
+    const line: number[] = []
+    for (let col = 0; col < 11; col++) {
+      const x = bounds.minX + (col / 10) * (bounds.maxX - bounds.minX)
+      line.push(blurredLiftAt(x, y, layers, sigma))
+    }
+    points.push(line)
+  }
+  return { ...flatMesh(0), points }
+}
+
+function measurement(
+  id: string,
+  mesh: Mesh,
+  layers: number[][] | null,
+  applied: CalibrationPlan | null = null,
+): CalibrationMeasurement {
+  return { id, label: id.toUpperCase(), createdAt: '2026-01-01T00:00:00.000Z', mesh, layers, applied }
+}
+
+const layers = layerPattern()
+
+const appliedPlan: CalibrationPlan = {
+  layers,
+  tapeWidth: 20,
+  plateW: 235,
+  plateH: 235,
+  extendToPlate: false,
+}
+
+/** M1 was taken on a bare bed, the plan was glued, M2 saw it with σ = 30 mm. */
+const m1 = measurement('m1', flatMesh(0), null, appliedPlan)
+const m2 = measurement('m2', meshFromField(layers, 30), layers)
+
+describe('Auto / Pro calibration parity', () => {
+  it('Auto applies exactly the values Pro fits and applies', () => {
+    expect(calibrationProblem(m1, m2)).toBeNull()
+
+    const manual = fitCalibrationPair({ from: m1, to: m2, fallbackSigma: 22 })
+    expect(manual).not.toBeNull()
+    const proValues = calibrationValues(manual!)
+
+    const auto = autoCalibration({ measurements: [m1, m2], fallbackSigma: 22 })
+    expect(auto.status).toBe('ready')
+    if (auto.status !== 'ready') return
+    expect(auto.values).toEqual(proValues)
+
+    const proMaterial: Material = {
+      ...DEFAULT_MATERIAL,
+      t1: proValues.t1,
+      ts: proValues.ts,
+      calibrated: true,
+    }
+    const autoMaterial: Material = {
+      ...DEFAULT_MATERIAL,
+      t1: auto.values.t1,
+      ts: auto.values.ts,
+      calibrated: true,
+    }
+
+    const options = {
+      surface: createSurface(m2.mesh),
+      grid: grid(),
+      referencePercentile: 0.85,
+      rounding: 'round' as const,
+      maxLayers: 6,
+      baseLayers: m2.layers ?? undefined,
+    }
+    const proPlan = plan({ ...options, material: proMaterial })
+    const autoPlan = plan({ ...options, material: autoMaterial })
+
+    expect(autoPlan.layers).toEqual(proPlan.layers)
+    expect(autoPlan.stats).toEqual(proPlan.stats)
+    expect(Math.abs(auto.values.t1 - TRUE_MATERIAL.t1) / TRUE_MATERIAL.t1).toBeLessThan(0.02)
+    expect(Math.abs(auto.values.ts - TRUE_MATERIAL.ts!) / TRUE_MATERIAL.ts!).toBeLessThan(0.02)
+  })
+
+  it('uses the last two measurements, like the Pro defaults', () => {
+    const older = measurement('m0', flatMesh(0), null, null)
+    const pair = lastPair([older, m1, m2])
+    expect(pair?.from.id).toBe('m1')
+    expect(pair?.to.id).toBe('m2')
+
+    const auto = autoCalibration({ measurements: [older, m1, m2], fallbackSigma: 22 })
+    expect(auto.status).toBe('ready')
+    if (auto.status !== 'ready') return
+    expect(auto.from.id).toBe('m1')
+    expect(auto.to.id).toBe('m2')
+  })
+})
+
+describe('autoCalibration waiting states', () => {
+  it('waits for a second measurement', () => {
+    expect(autoCalibration({ measurements: [] })).toEqual({ status: 'noPair' })
+    expect(autoCalibration({ measurements: [m1] })).toEqual({ status: 'noPair' })
+  })
+
+  it('reports a missing plan without touching the material', () => {
+    const noPlan = measurement('m1', flatMesh(0), null, null)
+    const auto = autoCalibration({ measurements: [noPlan, m2] })
+    expect(auto.status).toBe('blocked')
+    if (auto.status !== 'blocked') return
+    expect(auto.problem).toBe('fromNoPlan')
+  })
+
+  it('reports a missing layer state on the new measurement', () => {
+    const noLayers = measurement('m2', meshFromField(layers, 30), null)
+    const auto = autoCalibration({ measurements: [m1, noLayers] })
+    expect(auto.status).toBe('blocked')
+    if (auto.status !== 'blocked') return
+    expect(auto.problem).toBe('toNoLayers')
+  })
+
+  it('refuses a pair with different probe geometry', () => {
+    const other = measurement('m2', { ...meshFromField(layers, 30), xCount: 9 }, layers)
+    const auto = autoCalibration({ measurements: [m1, other] })
+    expect(auto.status).toBe('blocked')
+    if (auto.status !== 'blocked') return
+    expect(auto.problem).toBe('geometry')
+  })
+
+  it('does not apply an inconclusive fit', () => {
+    const unchanged = measurement('m2', flatMesh(0), layers)
+    const auto = autoCalibration({ measurements: [m1, unchanged], fallbackSigma: 22 })
+    expect(auto.status).toBe('inconclusive')
+    if (auto.status !== 'inconclusive') return
+    expect(auto.result.fit.conclusive).toBe(false)
+  })
+})

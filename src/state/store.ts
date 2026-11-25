@@ -34,6 +34,12 @@ export interface Measurement {
 
 let counter = 0
 
+/**
+ * Pro exposes every calibration control; Auto fits and applies t1/ts/σ itself
+ * and keeps only the physical plan inputs (SPEC §9.2).
+ */
+export type AppMode = 'pro' | 'auto'
+
 export interface PlanSettings {
   tapeWidth: number
   plateW: number
@@ -47,6 +53,9 @@ export interface PlanSettings {
 export interface AppState {
   lang: Lang
   setLang: (lang: Lang) => void
+  /** Pro shows all knobs; Auto calibrates by itself. */
+  mode: AppMode
+  setMode: (mode: AppMode) => void
   material: Material
   setMaterial: (material: Material) => void
   /** Geometry and target choices shared by the Plan and Lattice tabs. */
@@ -81,6 +90,8 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       lang: 'en',
       setLang: (lang) => set({ lang }),
+      mode: 'pro',
+      setMode: (mode) => set({ mode }),
       material: DEFAULT_MATERIAL,
       setMaterial: (material) => set({ material }),
       planSettings: {

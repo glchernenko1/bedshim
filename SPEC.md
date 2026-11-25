@@ -602,7 +602,29 @@ Show the residual map with these markers and a "add 0.05 foil here" hint.
 ### 9.5 Applying
 
 `applyCalibration(params)` → recompute plan with `t1`/`ts`, enforce monotonicity,
-show the diff (`+1 layer in 7 cells, unchanged elsewhere`). Never apply silently.
+show the diff (`+1 layer in 7 cells, unchanged elsewhere`). In Pro mode never
+apply silently.
+
+### 9.6 Pro and Auto modes
+
+The header switch chooses who runs the calibration loop; it is persisted with
+the other settings.
+
+- **Pro** is the full instrument: the Calibration tab, the from/to pair, the fit
+  table, `t1`/`ts`/`nominal`/rounding/σ inputs and the probe-count advice.
+- **Auto** is the owner's opt-in to apply the loop without a click. It removes
+  the Calibration tab and the material, rounding, σ and probe controls, and
+  keeps only the physical plan inputs: tape width, plate size, Extend to plate
+  edges, plus the plan, cut list and prediction.
+- Both modes take the **same pair** (the last two measurements, the Pro default)
+  and call the same `fitCalibrationPair` / `calibrationValues` helpers. Auto
+  applies `t1`, `ts`, σ and `round` only when the fit is conclusive; an
+  inconclusive fit, a missing plan, a missing layer state or different probe
+  geometry is reported and nothing is written.
+- Auto never invents data: the user still marks the plan as glued and adds the
+  next mesh. The difference is only that no "Fit" and "Use these values" clicks
+  are needed. `src/core/calibration.test.ts` asserts that Pro and Auto produce
+  identical material values and an identical layer plan for the same pair.
 
 ---
 

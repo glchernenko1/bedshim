@@ -1,23 +1,14 @@
 import { useState } from 'react'
 import { Alert, Button, Card, Col, Row, Select, Space, Statistic, Typography } from 'antd'
-import { fitBridging, type BridgingResult } from '../core/calibrate'
-import { buildGrid } from '../core/grid'
-import { createSurface } from '../core/mesh/interpolate'
-import type { Measurement } from '../state/store'
+import type { BridgingResult } from '../core/calibrate'
+import {
+  calibrationProblem,
+  calibrationValues,
+  fitCalibrationPair,
+  type CalibrationProblem,
+} from '../core/calibration'
 import { useAppStore } from '../state/store'
 import { useT } from '../i18n'
-
-function boundsMatch(a: Measurement['mesh']['bounds'], b: Measurement['mesh']['bounds']): boolean {
-  if (!a || !b) return false
-  return (
-    Math.abs(a.minX - b.minX) < 1e-6 &&
-    Math.abs(a.maxX - b.maxX) < 1e-6 &&
-    Math.abs(a.minY - b.minY) < 1e-6 &&
-    Math.abs(a.maxY - b.maxY) < 1e-6
-  )
-}
-
-type Reason = 'same' | 'fromNoPlan' | 'toNoLayers' | 'geometry' | null
 
 /**
  * Fits t1/ts from two stored meshes and the layer states between them (SPEC §9.2).
@@ -51,22 +42,7 @@ export function CalibrationCard() {
   const from = measurements.find((item) => item.id === fromId) ?? defaultFrom
   const to = measurements.find((item) => item.id === toId) ?? defaultTo
 
-  const fromLayers =
-    from.layers ?? (from.applied ? from.applied.layers.map((row) => row.map(() => 0)) : null)
-
-  const reason: Reason = (() => {
-    if (from.id === to.id) return 'same'
-    if (!from.applied || !fromLayers) return 'fromNoPlan'
-    if (!to.layers) return 'toNoLayers'
-    if (
-      from.mesh.xCount !== to.mesh.xCount ||
-      from.mesh.yCount !== to.mesh.yCount ||
-      !boundsMatch(from.mesh.bounds, to.mesh.bounds)
-    ) {
-      return 'geometry'
-    }
-    return null
-  })()
+  const reason: CalibrationProblem = calibrationProblem(from, to)
 
   const options = [...measurements].reverse().map((item) => ({
     value: item.id,
@@ -74,36 +50,24 @@ export function CalibrationCard() {
   }))
 
   const run = (): void => {
-    if (reason !== null || !from.applied || !fromLayers || !to.layers || !from.mesh.bounds) return
-    const grid = buildGrid({
-      plate: { w: from.applied.plateW, h: from.applied.plateH },
-      meshBounds: from.mesh.bounds,
-      tapeWidth: from.applied.tapeWidth,
-      meshXCount: from.mesh.xCount,
-      meshYCount: from.mesh.yCount,
-      extendToPlate: from.applied.extendToPlate,
+    const fitted = fitCalibrationPair({
+      from,
+      to,
+      fixedT1: material.calibrated ? material.t1 : undefined,
+      fallbackSigma: sigma,
     })
-    setResult(
-      fitBridging({
-        oldSurface: createSurface(from.mesh),
-        newSurface: createSurface(to.mesh),
-        oldLayers: fromLayers,
-        newLayers: to.layers,
-        grid,
-        fixedT1: material.calibrated ? material.t1 : undefined,
-        fallbackSigma: sigma,
-      }),
-    )
+    if (fitted) setResult(fitted)
   }
 
   const apply = (): void => {
     if (!result) return
-    const round = (value: number): number => Math.round(value * 10000) / 10000
-    setMaterial({ ...material, t1: round(result.fit.t1), ts: round(result.fit.ts), calibrated: true })
+    // The same helper is used by Auto mode, so both paths apply identical values.
+    const values = calibrationValues(result)
+    setMaterial({ ...material, t1: values.t1, ts: values.ts, calibrated: true })
     // The same pair also measures the bridging width and applies it at once.
-    setSigma(Math.round(result.sigma * 10) / 10)
+    setSigma(values.sigma)
     // With both values measured, nearest-layer rounding is safe and expected.
-    setRounding('round')
+    setRounding(values.rounding)
   }
 
   const params = { previous: from.label, current: to.label }

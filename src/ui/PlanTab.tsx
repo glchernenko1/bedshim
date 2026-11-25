@@ -22,9 +22,11 @@ import { deadbandOf, furtherLayer } from '../core/material'
 import { createSurface } from '../core/mesh/interpolate'
 import { diffAgainstPhysical, plan, type Rounding } from '../core/plan'
 import { predictPlan, predictedMeshBlock } from '../core/forward'
+import type { AutoCalibrationState } from '../core/calibration'
 import { bedMeshSnippet, idealProbeCount, probeAdvice, probeEstimate } from '../core/probe'
 import { useT } from '../i18n'
 import { useAppStore } from '../state/store'
+import { AutoCalibrationStatus } from './AutoCalibrationStatus'
 import { LayerLegend, PlanGridCanvas } from './PlanGridCanvas'
 import { PredictedRelief } from './PredictedRelief'
 import { ResidualMapCanvas } from './ResidualMapCanvas'
@@ -42,8 +44,10 @@ function verdictOf(points: number): Verdict {
 
 const fmt = (value: number, digits = 4): string => value.toFixed(digits)
 
-export function PlanTab() {
+export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
   const t = useT()
+  const mode = useAppStore((state) => state.mode)
+  const isAuto = mode === 'auto'
   const measurements = useAppStore((state) => state.measurements)
   const selectedId = useAppStore((state) => state.selectedId)
   const measurement = measurements.find((item) => item.id === selectedId) ?? null
@@ -169,7 +173,12 @@ export function PlanTab() {
   }, [mesh, tapeWidth])
 
   if (!mesh) {
-    return <Alert type="info" showIcon title={t('plan.noMesh.title')} description={t('plan.noMesh.body')} />
+    return (
+      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+        {isAuto && <AutoCalibrationStatus state={auto} />}
+        <Alert type="info" showIcon title={t('plan.noMesh.title')} description={t('plan.noMesh.body')} />
+      </Space>
+    )
   }
 
   const messages = [...(grid?.warnings ?? []), ...(result?.warnings ?? []), ...(surface?.notices ?? []), ...advice]
@@ -177,6 +186,7 @@ export function PlanTab() {
 
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+      {isAuto && <AutoCalibrationStatus state={auto} />}
       <Card title={t('plan.inputs.title')}>
         <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           <Row gutter={[16, 12]}>
@@ -193,10 +203,6 @@ export function PlanTab() {
               <InputNumber min={50} max={500} value={plateH} onChange={(value) => value && setPlanSettings({ plateH: value })} style={{ width: '100%' }} />
             </Col>
             <Col xs={12} sm={8} md={4}>
-              <Typography.Text type="secondary">{t('plan.field.maxLayers')}</Typography.Text>
-              <InputNumber min={1} max={12} value={maxLayers} onChange={(value) => value && setPlanSettings({ maxLayers: value })} style={{ width: '100%' }} />
-            </Col>
-            <Col xs={12} sm={8} md={4}>
               <Typography.Text type="secondary">{t('plan.field.extend')}</Typography.Text>
               <div>
                 <Switch
@@ -205,117 +211,139 @@ export function PlanTab() {
                 />
               </div>
             </Col>
-            <Col xs={12} sm={8} md={4}>
-              <Typography.Text type="secondary">{t('plan.field.nominal')}</Typography.Text>
-              <InputNumber
-                min={0.01}
-                max={0.5}
-                step={0.01}
-                value={material.nominal}
-                onChange={(value) => {
-                  if (!value) return
-                  setMaterial(
-                    material.calibrated
-                      ? { ...material, nominal: value }
-                      : { ...material, nominal: value, t1: 0.6 * value, ts: 0.6 * value },
-                  )
-                }}
-                style={{ width: '100%' }}
-              />
-            </Col>
-            <Col xs={12} sm={8} md={4}>
-              <Typography.Text type="secondary">{t('plan.field.calibrated')}</Typography.Text>
-              <div>
-                <Switch
-                  checked={material.calibrated}
-                  onChange={(checked) => {
-                    setMaterial({ ...material, calibrated: checked })
-                    setRounding(checked ? 'round' : 'floor')
-                  }}
-                />
-              </div>
-            </Col>
-            <Col xs={12} sm={8} md={4}>
-              <Typography.Text type="secondary">{t('plan.field.t1')}</Typography.Text>
-              <InputNumber
-                min={0.005}
-                max={0.3}
-                step={0.005}
-                disabled={!material.calibrated}
-                value={material.t1}
-                onChange={(value) => value && setMaterial({ ...material, t1: value })}
-                style={{ width: '100%' }}
-              />
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {t('plan.field.t1.hint')}
-              </Typography.Text>
-            </Col>
-            <Col xs={12} sm={8} md={4}>
-              <Typography.Text type="secondary">{t('plan.field.ts')}</Typography.Text>
-              <InputNumber
-                min={0.005}
-                max={0.3}
-                step={0.005}
-                disabled={!material.calibrated}
-                value={material.ts}
-                placeholder="—"
-                onChange={(value) => setMaterial({ ...material, ts: value === null ? null : value })}
-                style={{ width: '100%' }}
-              />
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {t('plan.field.ts.hint')}
-              </Typography.Text>
-            </Col>
-            <Col xs={24} sm={12} md={8}>
-              <Typography.Text type="secondary">{t('plan.field.rounding')}</Typography.Text>
-              <Segmented<Rounding>
-                block
-                value={rounding}
-                onChange={(value) => setRounding(value)}
-                options={[
-                  { label: t('plan.rounding.floor'), value: 'floor' },
-                  { label: t('plan.rounding.round'), value: 'round' },
-                ]}
-              />
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {t('plan.rounding.hint')}
-              </Typography.Text>
-            </Col>
-            <Col xs={24} md={12}>
-              <Typography.Text type="secondary">
-                {t('plan.field.percentile')} · {percentile.toFixed(2)}
-              </Typography.Text>
-              <Slider min={0.5} max={0.95} step={0.01} value={percentile} onChange={(value) => setPlanSettings({ percentile: Number(value) })} />
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {t('plan.field.percentile.hint')}
-              </Typography.Text>
-            </Col>
-            <Col xs={24} md={12}>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {t('plan.material.note', { deadband: fmt(deadband, 3) })}
-                <br />
-                {material.calibrated
-                  ? material.ts === null
-                    ? t('plan.material.tsMissing')
-                    : t('plan.material.measured')
-                  : t('plan.material.fallback')}
-                <br />
-                {t('plan.material.layers')}
-                <br />
-                {t('plan.material.auto')}
-                <br />
-                {t('plan.material.tsBigger')}
-              </Typography.Text>
-            </Col>
+            {isAuto && (
+              <Col xs={24}>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('plan.auto.defaults', {
+                    max: maxLayers,
+                    percentile: percentile.toFixed(2),
+                  })}
+                  <br />
+                  {t('auto.note')}
+                </Typography.Text>
+              </Col>
+            )}
+            {!isAuto && (
+              <>
+                <Col xs={12} sm={8} md={4}>
+                  <Typography.Text type="secondary">{t('plan.field.maxLayers')}</Typography.Text>
+                  <InputNumber min={1} max={12} value={maxLayers} onChange={(value) => value && setPlanSettings({ maxLayers: value })} style={{ width: '100%' }} />
+                </Col>
+                <Col xs={12} sm={8} md={4}>
+                  <Typography.Text type="secondary">{t('plan.field.nominal')}</Typography.Text>
+                  <InputNumber
+                    min={0.01}
+                    max={0.5}
+                    step={0.01}
+                    value={material.nominal}
+                    onChange={(value) => {
+                      if (!value) return
+                      setMaterial(
+                        material.calibrated
+                          ? { ...material, nominal: value }
+                          : { ...material, nominal: value, t1: 0.6 * value, ts: 0.6 * value },
+                      )
+                    }}
+                    style={{ width: '100%' }}
+                  />
+                </Col>
+                <Col xs={12} sm={8} md={4}>
+                  <Typography.Text type="secondary">{t('plan.field.calibrated')}</Typography.Text>
+                  <div>
+                    <Switch
+                      checked={material.calibrated}
+                      onChange={(checked) => {
+                        setMaterial({ ...material, calibrated: checked })
+                        setRounding(checked ? 'round' : 'floor')
+                      }}
+                    />
+                  </div>
+                </Col>
+                <Col xs={12} sm={8} md={4}>
+                  <Typography.Text type="secondary">{t('plan.field.t1')}</Typography.Text>
+                  <InputNumber
+                    min={0.005}
+                    max={0.3}
+                    step={0.005}
+                    disabled={!material.calibrated}
+                    value={material.t1}
+                    onChange={(value) => value && setMaterial({ ...material, t1: value })}
+                    style={{ width: '100%' }}
+                  />
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {t('plan.field.t1.hint')}
+                  </Typography.Text>
+                </Col>
+                <Col xs={12} sm={8} md={4}>
+                  <Typography.Text type="secondary">{t('plan.field.ts')}</Typography.Text>
+                  <InputNumber
+                    min={0.005}
+                    max={0.3}
+                    step={0.005}
+                    disabled={!material.calibrated}
+                    value={material.ts}
+                    placeholder="—"
+                    onChange={(value) => setMaterial({ ...material, ts: value === null ? null : value })}
+                    style={{ width: '100%' }}
+                  />
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {t('plan.field.ts.hint')}
+                  </Typography.Text>
+                </Col>
+                <Col xs={24} sm={12} md={8}>
+                  <Typography.Text type="secondary">{t('plan.field.rounding')}</Typography.Text>
+                  <Segmented<Rounding>
+                    block
+                    value={rounding}
+                    onChange={(value) => setRounding(value)}
+                    options={[
+                      { label: t('plan.rounding.floor'), value: 'floor' },
+                      { label: t('plan.rounding.round'), value: 'round' },
+                    ]}
+                  />
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {t('plan.rounding.hint')}
+                  </Typography.Text>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Typography.Text type="secondary">
+                    {t('plan.field.percentile')} · {percentile.toFixed(2)}
+                  </Typography.Text>
+                  <Slider min={0.5} max={0.95} step={0.01} value={percentile} onChange={(value) => setPlanSettings({ percentile: Number(value) })} />
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {t('plan.field.percentile.hint')}
+                  </Typography.Text>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {t('plan.material.note', { deadband: fmt(deadband, 3) })}
+                    <br />
+                    {material.calibrated
+                      ? material.ts === null
+                        ? t('plan.material.tsMissing')
+                        : t('plan.material.measured')
+                      : t('plan.material.fallback')}
+                    <br />
+                    {t('plan.material.layers')}
+                    <br />
+                    {t('plan.material.auto')}
+                    <br />
+                    {t('plan.material.tsBigger')}
+                  </Typography.Text>
+                </Col>
+              </>
+            )}
           </Row>
 
-          <Alert
-            type="info"
-            showIcon
-            title={t('plan.rounding.first.title')}
-            description={t('plan.rounding.first.body')}
-          />
-          {rounding === 'round' && !material.calibrated && (
+          {!isAuto && (
+            <Alert
+              type="info"
+              showIcon
+              title={t('plan.rounding.first.title')}
+              description={t('plan.rounding.first.body')}
+            />
+          )}
+          {!isAuto && rounding === 'round' && !material.calibrated && (
             <Alert type="warning" showIcon title={t('plan.rounding.overshoot.title')} description={t('plan.rounding.overshoot.body')} />
           )}
           {extendToPlate && (
@@ -505,15 +533,21 @@ export function PlanTab() {
                   </Typography.Text>
                 </Space>
 
-                <div>
-                  <Typography.Text type="secondary">
-                    {t('plan.forward.sigma')} · {sigma} mm
-                  </Typography.Text>
-                  <Slider min={8} max={60} step={1} value={sigma} onChange={(value) => setSigma(Number(value))} />
+                {isAuto ? (
                   <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {t('plan.forward.sigma.hint')}
+                    {t('plan.forward.sigma')} · {sigma} mm · {t('plan.forward.sigma.auto')}
                   </Typography.Text>
-                </div>
+                ) : (
+                  <div>
+                    <Typography.Text type="secondary">
+                      {t('plan.forward.sigma')} · {sigma} mm
+                    </Typography.Text>
+                    <Slider min={8} max={60} step={1} value={sigma} onChange={(value) => setSigma(Number(value))} />
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      {t('plan.forward.sigma.hint')}
+                    </Typography.Text>
+                  </div>
+                )}
 
                 {prediction.warnings.map((warning, index) => (
                   <Alert
@@ -564,39 +598,41 @@ export function PlanTab() {
             </Card>
           )}
 
-          <Card title={t('probe.title')}>
-            <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-              <Typography.Text type="secondary">{t('probe.hint')}</Typography.Text>
-              <Table
-                size="small"
-                pagination={false}
-                scroll={{ x: 520 }}
-                dataSource={probeRows}
-                columns={[
-                  {
-                    title: t('probe.col.tape'),
-                    dataIndex: 'width',
-                    render: (value: number, row) => (
-                      <Space size={6}>
-                        {`${value} mm`}
-                        {row.current && <Tag color="blue">{t('probe.current')}</Tag>}
-                      </Space>
-                    ),
-                  },
-                  { title: t('probe.col.grid'), dataIndex: 'grid' },
-                  { title: t('probe.col.points'), dataIndex: 'points', align: 'right' },
-                  { title: t('probe.col.time'), dataIndex: 'minutes', align: 'right', render: (value: number) => `≈ ${value} ${t('probe.minutes')}` },
-                  { title: t('probe.col.verdict'), dataIndex: 'verdict', render: (value: Verdict) => t(`probe.verdict.${value}`) },
-                ]}
-              />
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {t('probe.snippet')}
-              </Typography.Text>
-              <Typography.Paragraph code copyable style={{ whiteSpace: 'pre-wrap', marginBottom: 0, maxHeight: 220, overflow: 'auto' }}>
-                {snippet}
-              </Typography.Paragraph>
-            </Space>
-          </Card>
+          {!isAuto && (
+            <Card title={t('probe.title')}>
+              <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+                <Typography.Text type="secondary">{t('probe.hint')}</Typography.Text>
+                <Table
+                  size="small"
+                  pagination={false}
+                  scroll={{ x: 520 }}
+                  dataSource={probeRows}
+                  columns={[
+                    {
+                      title: t('probe.col.tape'),
+                      dataIndex: 'width',
+                      render: (value: number, row) => (
+                        <Space size={6}>
+                          {`${value} mm`}
+                          {row.current && <Tag color="blue">{t('probe.current')}</Tag>}
+                        </Space>
+                      ),
+                    },
+                    { title: t('probe.col.grid'), dataIndex: 'grid' },
+                    { title: t('probe.col.points'), dataIndex: 'points', align: 'right' },
+                    { title: t('probe.col.time'), dataIndex: 'minutes', align: 'right', render: (value: number) => `≈ ${value} ${t('probe.minutes')}` },
+                    { title: t('probe.col.verdict'), dataIndex: 'verdict', render: (value: Verdict) => t(`probe.verdict.${value}`) },
+                  ]}
+                />
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('probe.snippet')}
+                </Typography.Text>
+                <Typography.Paragraph code copyable style={{ whiteSpace: 'pre-wrap', marginBottom: 0, maxHeight: 220, overflow: 'auto' }}>
+                  {snippet}
+                </Typography.Paragraph>
+              </Space>
+            </Card>
+          )}
         </>
       )}
 

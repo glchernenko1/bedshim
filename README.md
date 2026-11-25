@@ -15,6 +15,11 @@ points at `src/main.tsx` and leaves the page blank.
 The sample meshes and the **Load example** picker exist only in `npm run dev`;
 the Pages build drops both, so visitors must paste their own mesh.
 
+The header switches between **Pro** and **Auto**. Pro exposes the Calibration tab
+and the material, rounding and σ controls. Auto hides them and applies a
+conclusive `t1`/`ts`/σ fit from the last two measurements by itself; the plan and
+cut list stay identical between the two modes.
+
 ## Commands
 
 ```bash
@@ -37,7 +42,7 @@ npm run cli -- parse fixtures/neptune4-mesh.cfg
 | P3 forward | done — σ-blur prediction, residual map, achievable/delivered, mesh export |
 | P4 strips | done — row/column runs per level, batching, EN/RU cut list and print sheet |
 | P5 STL | done — manifold STL with frame + bridges; numbers 1–10 on both front/back rims and letters A–J on both sides; optional margin plan; SVG output removed by owner |
-| P6 calibration | first half done — measurements, t1/ts/σ fit, auto-round; wizard and project JSON remain |
+| P6 calibration | first half done — measurements, t1/ts/σ fit, auto-round, Pro/Auto switch (Auto applies a conclusive fit without the calibration clicks); wizard and project JSON remain |
 
 Next: finish P6 — uniform-patch wizard, per-cell flags, peel and project
 JSON. Details in [`STATUS.md`](STATUS.md).

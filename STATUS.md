@@ -41,6 +41,37 @@ Still open for the owner's review:
    `import.meta.env.DEV`, so `npm run dev` has the three-sample picker and the
    GitHub Pages build has neither the button nor the fixture text.
 
+## Pro / Auto mode (2026-11-25)
+
+The header now has a **Pro | Auto** switch (persisted with the settings).
+
+- **Pro** is the previous UI unchanged: Calibration tab, pair selectors, fit
+  table, nominal/t1/ts, measured switch, rounding, σ slider and probe advice.
+- **Auto** removes the Calibration tab and hides material, t1/ts, rounding, σ
+  and probe controls. It keeps tape width, plate size, Extend to plate edges,
+  the plan, cut list and prediction, and shows one status card that says what
+  was fitted or why it is still waiting.
+- Auto always takes the last two measurements — the same pair the Pro selectors
+  default to — and applies `t1`, `ts`, σ and `round` only for a **conclusive**
+  fit. Missing plan, missing layer state, different probe geometry and an
+  inconclusive fit write nothing.
+- Both modes share `fitCalibrationPair` and `calibrationValues`; the new
+  `src/core/calibration.test.ts` asserts identical material values and an
+  identical layer plan for the same pair.
+
+Parity on the dev fixture loop (M1 → apply → M2), Pro manual vs Auto:
+
+| | Pro (fit → apply) | Auto |
+|---|---|---|
+| t1 | 0.0250 mm | 0.0250 mm |
+| ts | 0.0399 fitted → 0.0400 applied | 0.0400 mm |
+| σ | 22.0 mm | 22.0 mm |
+| Plan | 131 layers / 71 cells / 2620 mm / 497.8 cm² / max 3 | identical |
+| Prediction | 64% delivered / 23% in deadband / spread 0.0124 / worst 0.0498 / RMS 0.0262 | identical |
+
+Verification: **126 tests** in 14 files, typecheck and build pass; Auto hides the
+expected controls at 1280 px and adds no horizontal overflow at 360 px.
+
 ## Session summary — 2026-11-24
 
 - **Prediction map:** two modes — residual to target (green deadband, pale
@@ -78,7 +109,7 @@ Still open for the owner's review:
 | P3 forward | done | σ-bridged prediction, residual map, `achievable`/`delivered`, mesh export |
 | P4 strips | done | row/column runs per level, batching, EN/RU cut list, print sheet; 22 pieces / 2240 mm golden |
 | P5 STL | done | manifold STL with frame + bridges, numbers front/back, letters both sides, optional margin plan; SVG output removed by owner |
-| P6 calibration | first half done | measurement history, apply-plan state, t1/ts/σ fit, auto-round; wizard, peel UI and project JSON remain |
+| P6 calibration | first half done | measurement history, apply-plan state, t1/ts/σ fit, auto-round, Pro/Auto switch; wizard, peel UI and project JSON remain |
 
 Extras delivered beyond the phase table: 2D heatmap, rotatable 3D surface
 (canvas, no WebGL), surface statistics (min/mean/median/Δ/MAD with plain-language
@@ -131,7 +162,9 @@ bands), measurement history, calibration tab, dev-only example picker, clear-all
   probe nodes (mean-detrended, σ-blurred basis), fits the bridging σ by a 1-D
   sweep with the same least squares, reports R²/noise/layer-change counts,
   refuses inconsistent data, and on apply writes the material and σ and switches
-  rounding to `round`. A flat σ curve keeps the current value and says so.
+  rounding to `round`. A flat σ curve keeps the current value and says so. Auto
+  mode runs the same pair and helpers and applies the result without the two
+  button presses; Pro keeps the manual loop.
 - **Offline** — `base: './'`, service worker runtime cache; verified by two loads
   then an offline reload.
 

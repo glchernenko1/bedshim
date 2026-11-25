@@ -203,6 +203,10 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
               <InputNumber min={50} max={500} value={plateH} onChange={(value) => value && setPlanSettings({ plateH: value })} style={{ width: '100%' }} />
             </Col>
             <Col xs={12} sm={8} md={4}>
+              <Typography.Text type="secondary">{t('plan.field.maxLayers')}</Typography.Text>
+              <InputNumber min={1} max={12} value={maxLayers} onChange={(value) => value && setPlanSettings({ maxLayers: value })} style={{ width: '100%' }} />
+            </Col>
+            <Col xs={12} sm={8} md={4}>
               <Typography.Text type="secondary">{t('plan.field.extend')}</Typography.Text>
               <div>
                 <Switch
@@ -211,42 +215,42 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
                 />
               </div>
             </Col>
+            <Col xs={12} sm={8} md={4}>
+              <Typography.Text type="secondary">{t('plan.field.nominal')}</Typography.Text>
+              <InputNumber
+                min={0.01}
+                max={0.5}
+                step={0.01}
+                value={material.nominal}
+                onChange={(value) => {
+                  if (!value) return
+                  setMaterial(
+                    material.calibrated
+                      ? { ...material, nominal: value }
+                      : { ...material, nominal: value, t1: 0.6 * value, ts: 0.6 * value },
+                  )
+                }}
+                style={{ width: '100%' }}
+              />
+            </Col>
+            <Col xs={24} md={12}>
+              <Typography.Text type="secondary">
+                {t('plan.field.percentile')} · {percentile.toFixed(2)}
+              </Typography.Text>
+              <Slider min={0.5} max={0.95} step={0.01} value={percentile} onChange={(value) => setPlanSettings({ percentile: Number(value) })} />
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('plan.field.percentile.hint')}
+              </Typography.Text>
+            </Col>
             {isAuto && (
               <Col xs={24}>
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {t('plan.auto.defaults', {
-                    max: maxLayers,
-                    percentile: percentile.toFixed(2),
-                  })}
-                  <br />
                   {t('auto.note')}
                 </Typography.Text>
               </Col>
             )}
             {!isAuto && (
               <>
-                <Col xs={12} sm={8} md={4}>
-                  <Typography.Text type="secondary">{t('plan.field.maxLayers')}</Typography.Text>
-                  <InputNumber min={1} max={12} value={maxLayers} onChange={(value) => value && setPlanSettings({ maxLayers: value })} style={{ width: '100%' }} />
-                </Col>
-                <Col xs={12} sm={8} md={4}>
-                  <Typography.Text type="secondary">{t('plan.field.nominal')}</Typography.Text>
-                  <InputNumber
-                    min={0.01}
-                    max={0.5}
-                    step={0.01}
-                    value={material.nominal}
-                    onChange={(value) => {
-                      if (!value) return
-                      setMaterial(
-                        material.calibrated
-                          ? { ...material, nominal: value }
-                          : { ...material, nominal: value, t1: 0.6 * value, ts: 0.6 * value },
-                      )
-                    }}
-                    style={{ width: '100%' }}
-                  />
-                </Col>
                 <Col xs={12} sm={8} md={4}>
                   <Typography.Text type="secondary">{t('plan.field.calibrated')}</Typography.Text>
                   <div>
@@ -303,15 +307,6 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
                   />
                   <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                     {t('plan.rounding.hint')}
-                  </Typography.Text>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Typography.Text type="secondary">
-                    {t('plan.field.percentile')} · {percentile.toFixed(2)}
-                  </Typography.Text>
-                  <Slider min={0.5} max={0.95} step={0.01} value={percentile} onChange={(value) => setPlanSettings({ percentile: Number(value) })} />
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {t('plan.field.percentile.hint')}
                   </Typography.Text>
                 </Col>
                 <Col xs={24} md={12}>

@@ -43,7 +43,8 @@ Still open for the owner's review:
 
 ## Pro / Auto mode (2026-11-25)
 
-The header now has a **Pro | Auto** switch (persisted with the settings).
+The header now has a **Pro | Auto** switch (persisted with the settings, starts
+in Auto; the v8 migration switches states written by older builds to Auto once).
 
 - **Pro** is the previous UI unchanged: Calibration tab, pair selectors, fit
   table, nominal/t1/ts, measured switch, rounding, σ slider and probe advice.

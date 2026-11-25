@@ -608,7 +608,7 @@ apply silently.
 ### 9.6 Pro and Auto modes
 
 The header switch chooses who runs the calibration loop; it is persisted with
-the other settings.
+the other settings and starts in **Auto**.
 
 - **Pro** is the full instrument: the Calibration tab, the from/to pair, the fit
   table, `t1`/`ts`/`nominal`/rounding/σ inputs and the probe-count advice.

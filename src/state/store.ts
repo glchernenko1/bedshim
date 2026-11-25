@@ -90,7 +90,7 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       lang: 'en',
       setLang: (lang) => set({ lang }),
-      mode: 'pro',
+      mode: 'auto',
       setMode: (mode) => set({ mode }),
       material: DEFAULT_MATERIAL,
       setMaterial: (material) => set({ material }),
@@ -175,9 +175,11 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'bedshim.settings',
-      version: 7,
+      version: 8,
       // Older builds stored a single mesh; missing keys fall back to the defaults.
-      migrate: (persisted) => persisted as AppState,
+      // v8 introduces Pro/Auto with Auto as the starting mode, including for
+      // states written before the switch existed.
+      migrate: (persisted) => ({ ...(persisted as AppState), mode: 'auto' }),
     },
   ),
 )

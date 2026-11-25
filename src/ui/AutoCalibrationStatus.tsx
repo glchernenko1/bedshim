@@ -60,7 +60,6 @@ export function AutoCalibrationStatus({ state }: { state: AutoCalibrationState |
         title={t('auto.status.inconclusive.title', params)}
         description={t('auto.status.inconclusive.body', {
           ...params,
-          t1: state.result.fit.t1.toFixed(4),
           noise: state.result.fit.noise.toFixed(4),
           r2: state.result.fit.r2.toFixed(2),
         })}
@@ -75,8 +74,6 @@ export function AutoCalibrationStatus({ state }: { state: AutoCalibrationState |
       title={t('auto.status.done.title', params)}
       description={t('auto.status.done.body', {
         ...params,
-        t1: state.values.t1.toFixed(4),
-        ts: state.values.ts.toFixed(4),
         sigma: state.values.sigma.toFixed(1),
       })}
     />

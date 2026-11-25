@@ -15,10 +15,10 @@ points at `src/main.tsx` and leaves the page blank.
 The sample meshes and the **Load example** picker exist only in `npm run dev`;
 the Pages build drops both, so visitors must paste their own mesh.
 
-The header switches between **Pro** and **Auto**. Pro exposes the Calibration tab
-and the material, rounding and σ controls. Auto hides them and applies a
-conclusive `t1`/`ts`/σ fit from the last two measurements by itself; the plan and
-cut list stay identical between the two modes.
+The header switches between **Pro** and **Auto** and starts in Auto. Pro exposes
+the Calibration tab and the material, rounding and σ controls. Auto hides them
+and applies a conclusive material/σ fit from the last two measurements by
+itself; the plan and cut list stay identical between the two modes.
 
 ## Commands
 

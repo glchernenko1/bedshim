@@ -43,6 +43,15 @@ body {
 }
 
 /*
+ * Pro material row: a two-line label reserve keeps the switch, t1/ts inputs
+ * and the rounding control on one baseline even when a label wraps.
+ */
+.plan-material .ant-col > .ant-typography:first-child {
+  display: block;
+  min-height: 3.2em;
+}
+
+/*
  * SPEC §14: on a phone the flex column must shrink. Without this a wide table
  * (the probe-count grid sets x: 520) widens the whole page instead of scrolling
  * inside its card.

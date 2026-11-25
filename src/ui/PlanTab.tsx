@@ -190,32 +190,31 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
       <Card title={t('plan.inputs.title')}>
         <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           <Row gutter={[16, 12]}>
-            <Col xs={12} sm={8} md={4}>
-              <Typography.Text type="secondary">{t('plan.field.tape')}</Typography.Text>
-              <InputNumber min={5} max={100} step={5} value={tapeWidth} onChange={(value) => value && setPlanSettings({ tapeWidth: value })} style={{ width: '100%' }} />
-            </Col>
-            <Col xs={12} sm={8} md={4}>
+            <Col xs={12} sm={8} md={8}>
               <Typography.Text type="secondary">{t('plan.field.plateW')}</Typography.Text>
               <InputNumber min={50} max={500} value={plateW} onChange={(value) => value && setPlanSettings({ plateW: value })} style={{ width: '100%' }} />
             </Col>
-            <Col xs={12} sm={8} md={4}>
+            <Col xs={12} sm={8} md={8}>
               <Typography.Text type="secondary">{t('plan.field.plateH')}</Typography.Text>
               <InputNumber min={50} max={500} value={plateH} onChange={(value) => value && setPlanSettings({ plateH: value })} style={{ width: '100%' }} />
             </Col>
-            <Col xs={12} sm={8} md={4}>
-              <Typography.Text type="secondary">{t('plan.field.maxLayers')}</Typography.Text>
-              <InputNumber min={1} max={12} value={maxLayers} onChange={(value) => value && setPlanSettings({ maxLayers: value })} style={{ width: '100%' }} />
-            </Col>
-            <Col xs={12} sm={8} md={4}>
+            <Col xs={24} sm={8} md={8}>
               <Typography.Text type="secondary">{t('plan.field.extend')}</Typography.Text>
-              <div>
+              <div style={{ display: 'flex', alignItems: 'center', height: 32 }}>
                 <Switch
                   checked={extendToPlate}
                   onChange={(checked) => setPlanSettings({ extendToPlate: checked })}
                 />
               </div>
             </Col>
-            <Col xs={12} sm={8} md={4}>
+          </Row>
+
+          <Row gutter={[16, 12]}>
+            <Col xs={12} sm={8} md={8}>
+              <Typography.Text type="secondary">{t('plan.field.tape')}</Typography.Text>
+              <InputNumber min={5} max={100} step={5} value={tapeWidth} onChange={(value) => value && setPlanSettings({ tapeWidth: value })} style={{ width: '100%' }} />
+            </Col>
+            <Col xs={12} sm={8} md={8}>
               <Typography.Text type="secondary">{t('plan.field.nominal')}</Typography.Text>
               <InputNumber
                 min={0.01}
@@ -233,6 +232,13 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
                 style={{ width: '100%' }}
               />
             </Col>
+            <Col xs={24} sm={8} md={8}>
+              <Typography.Text type="secondary">{t('plan.field.maxLayers')}</Typography.Text>
+              <InputNumber min={1} max={12} value={maxLayers} onChange={(value) => value && setPlanSettings({ maxLayers: value })} style={{ width: '100%' }} />
+            </Col>
+          </Row>
+
+          <Row gutter={[16, 12]}>
             <Col xs={24} md={12}>
               <Typography.Text type="secondary">
                 {t('plan.field.percentile')} · {percentile.toFixed(2)}
@@ -243,17 +249,24 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
               </Typography.Text>
             </Col>
             {isAuto && (
-              <Col xs={24}>
+              <Col xs={24} md={12}>
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   {t('auto.note')}
                 </Typography.Text>
               </Col>
             )}
-            {!isAuto && (
-              <>
-                <Col xs={12} sm={8} md={4}>
+          </Row>
+
+          {!isAuto && (
+            <>
+              <Divider style={{ margin: '4px 0' }} />
+              <Typography.Title level={5} style={{ margin: 0 }}>
+                {t('plan.material.title')}
+              </Typography.Title>
+              <Row gutter={[16, 12]} className="plan-material">
+                <Col xs={24} sm={12} md={6}>
                   <Typography.Text type="secondary">{t('plan.field.calibrated')}</Typography.Text>
-                  <div>
+                  <div style={{ display: 'flex', alignItems: 'center', height: 32 }}>
                     <Switch
                       checked={material.calibrated}
                       onChange={(checked) => {
@@ -263,7 +276,7 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
                     />
                   </div>
                 </Col>
-                <Col xs={12} sm={8} md={4}>
+                <Col xs={24} sm={12} md={6}>
                   <Typography.Text type="secondary">{t('plan.field.t1')}</Typography.Text>
                   <InputNumber
                     min={0.005}
@@ -274,11 +287,8 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
                     onChange={(value) => value && setMaterial({ ...material, t1: value })}
                     style={{ width: '100%' }}
                   />
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {t('plan.field.t1.hint')}
-                  </Typography.Text>
                 </Col>
-                <Col xs={12} sm={8} md={4}>
+                <Col xs={24} sm={12} md={6}>
                   <Typography.Text type="secondary">{t('plan.field.ts')}</Typography.Text>
                   <InputNumber
                     min={0.005}
@@ -290,11 +300,8 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
                     onChange={(value) => setMaterial({ ...material, ts: value === null ? null : value })}
                     style={{ width: '100%' }}
                   />
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {t('plan.field.ts.hint')}
-                  </Typography.Text>
                 </Col>
-                <Col xs={24} sm={12} md={8}>
+                <Col xs={24} sm={12} md={6}>
                   <Typography.Text type="secondary">{t('plan.field.rounding')}</Typography.Text>
                   <Segmented<Rounding>
                     block
@@ -305,30 +312,30 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
                       { label: t('plan.rounding.round'), value: 'round' },
                     ]}
                   />
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {t('plan.rounding.hint')}
-                  </Typography.Text>
                 </Col>
-                <Col xs={24} md={12}>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {t('plan.material.note', { deadband: fmt(deadband, 3) })}
-                    <br />
-                    {material.calibrated
-                      ? material.ts === null
-                        ? t('plan.material.tsMissing')
-                        : t('plan.material.measured')
-                      : t('plan.material.fallback')}
-                    <br />
-                    {t('plan.material.layers')}
-                    <br />
-                    {t('plan.material.auto')}
-                    <br />
-                    {t('plan.material.tsBigger')}
-                  </Typography.Text>
-                </Col>
-              </>
-            )}
-          </Row>
+              </Row>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('plan.field.t1.hint')} {t('plan.field.ts.hint')}
+                <br />
+                {t('plan.rounding.hint')}
+              </Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('plan.material.note', { deadband: fmt(deadband, 3) })}
+                <br />
+                {material.calibrated
+                  ? material.ts === null
+                    ? t('plan.material.tsMissing')
+                    : t('plan.material.measured')
+                  : t('plan.material.fallback')}
+                <br />
+                {t('plan.material.layers')}
+                <br />
+                {t('plan.material.auto')}
+                <br />
+                {t('plan.material.tsBigger')}
+              </Typography.Text>
+            </>
+          )}
 
           {!isAuto && (
             <Alert

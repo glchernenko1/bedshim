@@ -48,10 +48,11 @@ in Auto; the v8 migration switches states written by older builds to Auto once).
 
 - **Pro** is the previous UI unchanged: Calibration tab, pair selectors, fit
   table, nominal/t1/ts, measured switch, rounding, σ slider and probe advice.
-- **Auto** removes the Calibration tab and hides material, t1/ts, rounding, σ
-  and probe controls. It keeps tape width, plate size, Extend to plate edges,
-  the plan, cut list and prediction, and shows one status card that says what
-  was fitted or why it is still waiting.
+- **Auto** removes the Calibration tab and hides the measured switch, t1/ts,
+  rounding, σ and probe controls. It keeps tape width, tape nominal, plate size,
+  Extend to plate edges, max layers, the reference percentile, the plan, cut
+  list and prediction, and shows one status card that says what was fitted or
+  why it is still waiting. The Auto UI never names t1/ts.
 - Auto always takes the last two measurements — the same pair the Pro selectors
   default to — and applies `t1`, `ts`, σ and `round` only for a **conclusive**
   fit. Missing plan, missing layer state, different probe geometry and an

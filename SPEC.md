@@ -613,9 +613,10 @@ the other settings and starts in **Auto**.
 - **Pro** is the full instrument: the Calibration tab, the from/to pair, the fit
   table, `t1`/`ts`/`nominal`/rounding/σ inputs and the probe-count advice.
 - **Auto** is the owner's opt-in to apply the loop without a click. It removes
-  the Calibration tab and the material, rounding, σ and probe controls, and
-  keeps only the physical plan inputs: tape width, plate size, Extend to plate
-  edges, plus the plan, cut list and prediction.
+  the Calibration tab and the measured/t1/ts/rounding/σ/probe controls, and
+  keeps the plan inputs: tape width, tape nominal, plate size, Extend to plate
+  edges, max layers and the reference percentile, plus the plan, cut list and
+  prediction. `t1`/`ts` are not named anywhere in the Auto UI.
 - Both modes take the **same pair** (the last two measurements, the Pro default)
   and call the same `fitCalibrationPair` / `calibrationValues` helpers. Auto
   applies `t1`, `ts`, σ and `round` only when the fit is conclusive; an

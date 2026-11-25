@@ -27,6 +27,7 @@ export const en: Record<string, string> = {
   'plan.rounding.overshoot.body': 'The material is not measured, so round can overshoot by up to half a layer. Keep floor for the first iteration.',
   'plan.field.percentile.hint': 'The reference is set from the top of the plate: at 0.85 the highest 15% of cells stay bare, and everything below that line is raised to it. Further right = flatter, but more tape.',
   'plan.forward.sigma.auto': 'fitted automatically',
+  'plan.material.title': 'Tape material',
   'plan.material.measured': 'Using the measured t1 / ts below.',
   'plan.material.fallback': 'Not measured: t1 = 0.6 × nominal; ts is unknown, so every further layer is counted as t1.',
   'plan.material.tsMissing': 'Marked as measured, but ts is empty: every further layer is counted as t1.',
@@ -42,7 +43,7 @@ export const en: Record<string, string> = {
   'plan.baseMismatch.body':
     'The layer count recorded for this measurement does not match the current grid (tape width or margin extension changed). It is treated as a bare bed; apply a plan from this grid before the next measurement.',
   'plan.field.rounding': 'Rounding',
-  'plan.rounding.floor': 'floor (undershoot)',
+  'plan.rounding.floor': 'floor',
   'plan.rounding.round': 'round',
   'plan.field.percentile': 'Reference percentile',
   'plan.material.note': 'Deadband {deadband} mm is the strip of cells just below the reference: a lift smaller than this also gets no layer, so a few more cells stay bare than the top 15%.',

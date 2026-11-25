@@ -7,6 +7,9 @@ Offline single-page app: TypeScript + Vite + React 19 + Ant Design 6, no backend
 no CDN, relative asset paths (`base: './'`). `SPEC.md` is the contract; `PROMPT.md`
 is the kickoff brief.
 
+Live build: <https://glchernenko1.github.io/bedshim/> — every push to `main` runs
+`.github/workflows/pages.yml` (tests, build, publish `dist/` to GitHub Pages).
+
 ## Commands
 
 ```bash

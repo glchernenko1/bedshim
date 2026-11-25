@@ -24,7 +24,8 @@ body {
 
 /* SPEC §14: the whole app must stay usable at 360 px. */
 .bedshim-shell {
-  max-width: 1100px;
+  min-width: 0;
+  max-width: min(1100px, 100%);
   margin: 0 auto;
   padding: 16px;
 }
@@ -39,4 +40,20 @@ body {
   display: block;
   width: 100%;
   height: auto;
+}
+
+/*
+ * SPEC §14: on a phone the flex column must shrink. Without this a wide table
+ * (the probe-count grid sets x: 520) widens the whole page instead of scrolling
+ * inside its card.
+ */
+.bedshim-shell .ant-space,
+.bedshim-shell .ant-space-item,
+.bedshim-shell .ant-tabs,
+.bedshim-shell .ant-tabs-content,
+.bedshim-shell .ant-tabs-body,
+.bedshim-shell .ant-card,
+.bedshim-shell .ant-card-body {
+  min-width: 0;
+  max-width: 100%;
 }

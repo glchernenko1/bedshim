@@ -210,7 +210,7 @@ export function LatticeTab() {
               <Statistic title={t('lattice.stats.volume')} value={volume} precision={2} suffix="cm³" />
             </Col>
             <Col xs={12} sm={8} md={4}>
-              <Statistic title={t('lattice.stats.weight')} value={weight} precision={1} suffix="g" />
+              <Statistic title={t('lattice.stats.weight')} value={Number(weight.toFixed(1))} precision={1} suffix="g" />
             </Col>
             <Col xs={24} sm={8} md={6}>
               <Typography.Text type="secondary">{t('lattice.stats.box')}</Typography.Text>

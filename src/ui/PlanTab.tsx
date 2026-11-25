@@ -346,7 +346,7 @@ export function PlanTab() {
               )}
               <Row gutter={[12, 8]}>
                 <Col xs={12} sm={8} md={4}>
-                  <Statistic title={t('plan.stat.ref')} value={result.reference} precision={4} suffix="mm" />
+                  <Statistic title={t('plan.stat.ref')} value={Number(result.reference.toFixed(4))} precision={4} suffix="mm" />
                 </Col>
                 <Col xs={12} sm={8} md={4}>
                   <Statistic title={t('plan.stat.layers')} value={result.stats.totalLayers} />

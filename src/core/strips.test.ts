@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { buildGrid } from './grid'
 import type { Material } from './material'
@@ -64,10 +64,6 @@ describe('buildStrips — Appendix A', () => {
       const lengths = strips.batches.filter((batch) => batch.level === level).map((batch) => batch.length)
       expect(lengths).toEqual([...lengths].sort((a, b) => b - a))
     }
-    writeFileSync(
-      '/tmp/opencode/strips.txt',
-      strips.batches.map((batch) => `L${batch.level} ${batch.count} x ${batch.width}x${batch.length} :: ${batch.pieces.join(', ')}`).join('\n'),
-    )
   })
 })
 

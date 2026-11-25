@@ -9,6 +9,9 @@ is the kickoff brief.
 
 Live build: <https://glchernenko1.github.io/bedshim/> — every push to `main` runs
 `.github/workflows/pages.yml` (tests, build, publish `dist/` to GitHub Pages).
+The repository setting **Settings → Pages → Build and deployment → Source** must
+stay **GitHub Actions**; a branch source publishes the raw `index.html`, which
+points at `src/main.tsx` and leaves the page blank.
 The sample meshes and the **Load example** picker exist only in `npm run dev`;
 the Pages build drops both, so visitors must paste their own mesh.
 

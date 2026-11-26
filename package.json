@@ -1,6 +1,6 @@
 {
   "name": "bedshim",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "description": "Klipper bed mesh to Kapton tape shim plan, printable lattice STL and calibration loop",
   "license": "MIT",

@@ -159,7 +159,9 @@ export function LatticeTab() {
               />
             </Col>
             <Col xs={12} sm={8} md={4}>
-              <Typography.Text type="secondary">{t('lattice.field.height')}</Typography.Text>
+              <Tooltip title={t('lattice.field.height.hint')} placement="topLeft">
+                <Typography.Text type="secondary">{t('lattice.field.height')}</Typography.Text>
+              </Tooltip>
               <InputNumber
                 min={0.2}
                 max={1.2}
@@ -170,7 +172,9 @@ export function LatticeTab() {
               />
             </Col>
             <Col xs={12} sm={8} md={4}>
-              <Typography.Text type="secondary">{t('lattice.field.frame')}</Typography.Text>
+              <Tooltip title={t('lattice.field.frame.hint')} placement="topLeft">
+                <Typography.Text type="secondary">{t('lattice.field.frame')}</Typography.Text>
+              </Tooltip>
               <InputNumber
                 min={1.5}
                 max={20}
@@ -182,7 +186,9 @@ export function LatticeTab() {
               />
             </Col>
             <Col xs={12} sm={8} md={4}>
-              <Typography.Text type="secondary">{t('lattice.field.rim')}</Typography.Text>
+              <Tooltip title={t('lattice.field.rim.hint')} placement="topLeft">
+                <Typography.Text type="secondary">{t('lattice.field.rim')}</Typography.Text>
+              </Tooltip>
               <InputNumber
                 min={2}
                 max={10}
@@ -194,7 +200,9 @@ export function LatticeTab() {
               />
             </Col>
             <Col xs={12} sm={8} md={4}>
-              <Typography.Text type="secondary">{t('lattice.field.bridges')}</Typography.Text>
+              <Tooltip title={t('lattice.field.bridges.hint')} placement="topLeft">
+                <Typography.Text type="secondary">{t('lattice.field.bridges')}</Typography.Text>
+              </Tooltip>
               <InputNumber
                 min={0}
                 max={10}
@@ -206,7 +214,9 @@ export function LatticeTab() {
               />
             </Col>
             <Col xs={12} sm={8} md={4}>
-              <Typography.Text type="secondary">{t('lattice.field.bridgeWidth')}</Typography.Text>
+              <Tooltip title={t('lattice.field.bridgeWidth.hint')} placement="topLeft">
+                <Typography.Text type="secondary">{t('lattice.field.bridgeWidth')}</Typography.Text>
+              </Tooltip>
               <InputNumber
                 min={0.8}
                 max={4}
@@ -218,7 +228,9 @@ export function LatticeTab() {
               />
             </Col>
             <Col xs={24} md={12}>
-              <Typography.Text type="secondary">{t('lattice.field.outline')}</Typography.Text>
+              <Tooltip title={t('lattice.field.outline.hint')} placement="topLeft">
+                <Typography.Text type="secondary">{t('lattice.field.outline')}</Typography.Text>
+              </Tooltip>
               <Segmented<'auto' | 'frame' | 'grid' | 'plate'>
                 block
                 value={outline}
@@ -246,7 +258,9 @@ export function LatticeTab() {
               />
             </Col>
             <Col xs={12} sm={8} md={6}>
-              <Typography.Text type="secondary">{t('lattice.field.labels')}</Typography.Text>
+              <Tooltip title={t('lattice.field.labels.hint')} placement="topLeft">
+                <Typography.Text type="secondary">{t('lattice.field.labels')}</Typography.Text>
+              </Tooltip>
               <div>
                 <Switch
                   checked={labels}

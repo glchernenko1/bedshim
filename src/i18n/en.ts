@@ -214,12 +214,26 @@ export const en: Record<string, string> = {
   'lattice.field.wall.hint':
     'Printed wall between two cell holes. 0.8 mm is two 0.4 mm perimeters at a 0.4 mm nozzle.',
   'lattice.field.height': 'Lattice height, mm',
+  'lattice.field.height.hint':
+    'Total height of the printed sheet. 0.6 mm is three 0.2 mm layers.',
   'lattice.field.frame': 'Frame, mm',
+  'lattice.field.frame.hint':
+    'Width of the solid outer frame in the frame + bridges outline.',
   'lattice.field.rim': 'Cell rim, mm',
+  'lattice.field.rim.hint':
+    'Solid rim left around the cell holes in the frame design.',
   'lattice.field.bridges': 'Bridges per side',
+  'lattice.field.bridges.hint':
+    'How many small bridges locate the inner lattice on each side.',
   'lattice.field.bridgeWidth': 'Bridge width, mm',
+  'lattice.field.bridgeWidth.hint':
+    'Width of one bridge; its ends are rounded.',
   'lattice.field.labels': 'Labels',
+  'lattice.field.labels.hint':
+    'Cut row letters and column numbers into the solid rim. Only available for the frame and extended outlines.',
   'lattice.field.outline': 'Outline',
+  'lattice.field.outline.hint':
+    'Auto uses a frame + bridges when the measured grid is inset by more than 5 mm; otherwise it uses the tight sheet. The other choices force one shape.',
   'lattice.outline.auto': 'Auto',
   'lattice.outline.frame': 'Frame + bridges',
   'lattice.outline.grid': 'Tight',

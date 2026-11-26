@@ -4,10 +4,10 @@ Last updated: 2026-11-27. `SPEC.md` is the contract; this file
 records the implementation state, every deliberate deviation and what is left.
 Read this first when resuming.
 
-## Current state — 2026-11-27 (deploy 0.8.0)
+## Current state — 2026-11-27 (deploy 0.8.1)
 
 The app is now an **online** client-side build: the header badge is the build
-version (`v0.8.0`, injected from `package.json` by Vite), not the old
+version (`v0.8.1`, injected from `package.json` by Vite), not the old
 "offline · no backend" label. GitHub Pages still builds on every push to
 `main` (`.github/workflows/pages.yml`).
 
@@ -70,6 +70,10 @@ separate centre cross**:
 - `src/core/geometry/composite.ts` + `composite.test.ts` cover split lines,
   one tenon/mortise per part, no overlap, clearance only on the tenon, the
   centre tunnel, manifold parts and the preview.
+- Every Lattice input label has a hover hint. The first label is shortened to
+  "Cell wall, mm" / "Стенка клеток, мм" so all fields align on one baseline.
+  The technical "closed manifold" tag was removed; real geometry problems stay
+  as warnings.
 
 Verification: **197 tests in 18 files**, `npm run typecheck` and `npm run build`
 pass. Deploy by pushing `main`; Pages runs tests and build again.

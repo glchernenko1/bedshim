@@ -201,7 +201,7 @@ export const en: Record<string, string> = {
   'probe.snippet': 'Copy into printer.cfg:',
   'probe.notice.popup.title': 'Probe grid does not match the tape',
   'probe.notice.popup.body':
-    'The mesh is {currentX}×{currentY}, but {tape} mm tape needs {idealX}×{idealY} ({points} points) over this area.',
+    'The mesh is {currentX}×{currentY}; a {idealX}×{idealY} grid ({points} points) is recommended for {tape} mm tape over this area.',
   'probe.notice.popup.after':
     'After copying, take a new mesh and restart the calibration: the old mesh was probed on a different grid.',
   'probe.notice.popup.copy': 'Copy config',

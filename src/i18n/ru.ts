@@ -202,7 +202,7 @@ export const ru: Dict = {
   'probe.snippet': 'Скопируй в printer.cfg:',
   'probe.notice.popup.title': 'Сетка щупа не совпадает со скотчем',
   'probe.notice.popup.body':
-    'Меш снят сеткой {currentX}×{currentY}, а для скотча {tape} мм на этой площади нужна {idealX}×{idealY} ({points} точек).',
+    'Меш снят сеткой {currentX}×{currentY}; для скотча {tape} мм на этой площади рекомендуется {idealX}×{idealY} ({points} шт.).',
   'probe.notice.popup.after':
     'После копирования пересними меш и начни калибровку заново: старый меш снят другой сеткой.',
   'probe.notice.popup.copy': 'Скопировать конфиг',

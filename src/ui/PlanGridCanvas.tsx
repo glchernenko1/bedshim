@@ -102,6 +102,16 @@ export function PlanGridCanvas({ plan }: { plan: Plan }) {
         context.restore()
       }
 
+      if (cell.reference) {
+        // The reserved first-layer witness: do not fill it by hand between meshes.
+        context.save()
+        context.setLineDash([2, 2])
+        context.strokeStyle = '#c41d7f'
+        context.lineWidth = cell.reference === 'zero' ? 2.5 : 1.5
+        context.strokeRect(x + 1, y + 1, Math.max(0, w - 2), Math.max(0, h - 2))
+        context.restore()
+      }
+
       const dark = cell.layers >= 3
       context.fillStyle = dark ? TEXT_LIGHT : TEXT_DARK
       context.font = '10px system-ui, sans-serif'

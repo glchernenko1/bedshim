@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Alert, Button, Card, Col, Row, Select, Space, Statistic, Typography } from 'antd'
 import type { BridgingResult } from '../core/calibrate'
 import {
+  calibrationMeasuresTape,
   calibrationProblem,
   calibrationValues,
   fitCalibrationPair,
@@ -24,6 +25,8 @@ export function CalibrationCard() {
   const setSigma = useAppStore((state) => state.setSigma)
   const setMeasurementLayers = useAppStore((state) => state.setMeasurementLayers)
   const setRounding = useAppStore((state) => state.setRounding)
+  const setBridgingMeasured = useAppStore((state) => state.setBridgingMeasured)
+  const bridgingMeasured = useAppStore((state) => state.bridgingMeasured)
   const [fromId, setFromId] = useState<string | null>(null)
   const [toId, setToId] = useState<string | null>(null)
   const [result, setResult] = useState<BridgingResult | null>(null)
@@ -54,6 +57,7 @@ export function CalibrationCard() {
       from,
       to,
       fixedT1: material.calibrated ? material.t1 : undefined,
+      fixedTs: material.calibrated && material.ts !== null ? material.ts : undefined,
       fallbackSigma: sigma,
     })
     if (fitted) setResult(fitted)
@@ -68,6 +72,11 @@ export function CalibrationCard() {
     setSigma(values.sigma)
     // With both values measured, nearest-layer rounding is safe and expected.
     setRounding(values.rounding)
+    // A first-layer change and a measured ts make the forward forecast real.
+    // If this pair only re-fitted t1, keep the previously measured ts and σ.
+    setBridgingMeasured(
+      calibrationMeasuresTape(result) || (result.fit.tsSource === 'previous' && bridgingMeasured),
+    )
   }
 
   const params = { previous: from.label, current: to.label }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   autoCalibration,
+  calibrationMeasuresTape,
   calibrationProblem,
   calibrationValues,
   fitCalibrationPair,
@@ -107,6 +108,24 @@ const appliedPlan: CalibrationPlan = {
 const m1 = measurement('m1', flatMesh(0), null, appliedPlan)
 const m2 = measurement('m2', meshFromField(layers, 30), layers)
 
+describe('calibrationMeasuresTape', () => {
+  it('matches the identifiability of a pair that changed a second layer', () => {
+    const fit = fitCalibrationPair({ from: m1, to: m2, fallbackSigma: 22 })
+    expect(fit).not.toBeNull()
+    expect(fit!.fit.singleParameter).toBe(false)
+    expect(calibrationMeasuresTape(fit!)).toBe(fit!.identifiable)
+  })
+
+  it('stays locked when the plan never put a second layer anywhere', () => {
+    const oneLayer = layers.map((row) => row.map((value) => Math.min(value, 1)))
+    const flatPlan = measurement('m2flat', meshFromField(oneLayer, 30), oneLayer)
+    const fit = fitCalibrationPair({ from: m1, to: flatPlan, fallbackSigma: 22 })
+    expect(fit).not.toBeNull()
+    expect(fit!.fit.singleParameter).toBe(true)
+    expect(calibrationMeasuresTape(fit!)).toBe(false)
+  })
+})
+
 describe('Auto / Pro calibration parity', () => {
   it('Auto applies exactly the values Pro fits and applies', () => {
     expect(calibrationProblem(m1, m2)).toBeNull()
@@ -200,5 +219,129 @@ describe('autoCalibration waiting states', () => {
     expect(auto.status).toBe('inconclusive')
     if (auto.status !== 'inconclusive') return
     expect(auto.result.fit.conclusive).toBe(false)
+  })
+
+  it('keeps a measured ts when the new plan only changed the first layer', () => {
+    const oneLayer = layers.map((row) => row.map((value) => Math.min(value, 1)))
+    const flat = measurement('m2flat', meshFromField(oneLayer, 30), oneLayer)
+    const auto = autoCalibration({
+      measurements: [m1, flat],
+      fixedT1: TRUE_MATERIAL.t1,
+      fixedTs: TRUE_MATERIAL.ts!,
+      fallbackSigma: 30,
+    })
+    expect(auto.status).toBe('ready')
+    if (auto.status !== 'ready') return
+    expect(auto.result.fit.tsSource).toBe('previous')
+    expect(auto.values.ts).toBeCloseTo(TRUE_MATERIAL.ts!, 2)
+    expect(auto.values.t1).toBeCloseTo(TRUE_MATERIAL.t1, 2)
+  })
+})
+
+describe('first-layer reference zone loop', () => {
+  it('recovers t1 and ts from a plan that would otherwise tape every cell twice', () => {
+    const base = Array.from({ length: 10 }, () => new Array<number>(10).fill(2))
+    const surface = createSurface(flatMesh(0))
+    const result = plan({
+      surface,
+      grid: grid(),
+      material: { ...TRUE_MATERIAL, calibrated: false },
+      referencePercentile: 0.85,
+      rounding: 'round',
+      baseLayers: base,
+    })
+    expect(result.referenceZone).not.toBeNull()
+
+    const applied: CalibrationPlan = {
+      layers: result.layers,
+      tapeWidth: 20,
+      plateW: 235,
+      plateH: 235,
+      extendToPlate: false,
+    }
+    const before = measurement('r1', meshFromField(base, 22), base, applied)
+    const after = measurement('r2', meshFromField(result.layers, 22), result.layers)
+    const fit = fitCalibrationPair({ from: before, to: after, fallbackSigma: 22 })
+
+    expect(fit).not.toBeNull()
+    expect(fit!.identifiable).toBe(true)
+    expect(fit!.fit.singleParameter).toBe(false)
+    expect(fit!.fit.tsSource).toBe('fit')
+    expect(fit!.fit.conclusive).toBe(true)
+    expect(fit!.fit.t1).toBeCloseTo(TRUE_MATERIAL.t1, 2)
+    expect(fit!.fit.ts).toBeCloseTo(TRUE_MATERIAL.ts!, 2)
+  })
+
+  it('does not turn a noisy witness into a conclusive fit', () => {
+    const base = Array.from({ length: 10 }, () => new Array<number>(10).fill(2))
+    const surface = createSurface(flatMesh(0))
+    const result = plan({
+      surface,
+      grid: grid(),
+      material: { ...TRUE_MATERIAL, calibrated: false },
+      referencePercentile: 0.85,
+      rounding: 'round',
+      baseLayers: base,
+    })
+    const applied: CalibrationPlan = {
+      layers: result.layers,
+      tapeWidth: 20,
+      plateW: 235,
+      plateH: 235,
+      extendToPlate: false,
+    }
+    const before = measurement('r1', meshFromField(base, 22), base, applied)
+    const clean = meshFromField(result.layers, 22)
+    const noisy = {
+      ...clean,
+      points: clean.points.map((row, r) =>
+        row.map((value, c) => value + 0.03 * Math.sin(r * 12.9898 + c * 78.233)),
+      ),
+    }
+    const after = measurement('r2', noisy, result.layers)
+    const fit = fitCalibrationPair({ from: before, to: after, fallbackSigma: 22 })
+    expect(fit).not.toBeNull()
+    expect(fit!.fit.conclusive).toBe(false)
+  })
+
+  it('measures t1 by filling an existing zero cell and keeps the known ts', () => {
+    // Everything already has two layers except one cell at 0: no second-layer
+    // change, so ts is not identifiable, but a 0 -> 1 fill measures t1.
+    const base = Array.from({ length: 10 }, () => new Array<number>(10).fill(2))
+    base[5]![5] = 0
+    const surface = createSurface(flatMesh(0))
+    const result = plan({
+      surface,
+      grid: grid(),
+      material: { ...TRUE_MATERIAL, calibrated: false },
+      referencePercentile: 0.85,
+      rounding: 'round',
+      baseLayers: base,
+    })
+    expect(result.referenceZone).not.toBeNull()
+    expect(result.referenceZone!.zero).toBeNull()
+    expect(result.referenceZone!.first).toEqual(['F6'])
+    expect(result.layers[5]![5]).toBe(1)
+    expect(result.warnings.map((warning) => warning.code)).toContain('plan.notice.referenceCell')
+
+    const applied: CalibrationPlan = {
+      layers: result.layers,
+      tapeWidth: 20,
+      plateW: 235,
+      plateH: 235,
+      extendToPlate: false,
+    }
+    const before = measurement('f1', meshFromField(base, 22), base, applied)
+    const after = measurement('f2', meshFromField(result.layers, 22), result.layers)
+    const fit = fitCalibrationPair({
+      from: before,
+      to: after,
+      fixedTs: TRUE_MATERIAL.ts!,
+      fallbackSigma: 22,
+    })
+    expect(fit).not.toBeNull()
+    expect(fit!.fit.tsSource).toBe('previous')
+    expect(fit!.fit.t1).toBeCloseTo(TRUE_MATERIAL.t1, 2)
+    expect(fit!.fit.ts).toBe(TRUE_MATERIAL.ts)
   })
 })

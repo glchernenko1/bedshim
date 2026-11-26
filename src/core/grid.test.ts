@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildGrid, rowLabel } from './grid'
+import { buildGrid, fitPlateToMesh, rowLabel } from './grid'
 
 const bounds = { minX: 10, maxX: 210, minY: 21, maxY: 211 }
 
@@ -13,6 +13,20 @@ function fixtureGrid(overrides: Partial<Parameters<typeof buildGrid>[0]> = {}) {
     ...overrides,
   })
 }
+
+describe('fitPlateToMesh', () => {
+  it('raises a plate that is smaller than the mesh', () => {
+    expect(fitPlateToMesh({ w: 200, h: 200 }, bounds)).toEqual({ w: 210, h: 211 })
+  })
+
+  it('keeps a plate that already contains the mesh', () => {
+    expect(fitPlateToMesh({ w: 235, h: 235 }, bounds)).toEqual({ w: 235, h: 235 })
+  })
+
+  it('rounds a fractional mesh edge up so it still fits', () => {
+    expect(fitPlateToMesh({ w: 200, h: 200 }, { ...bounds, maxY: 229.97 })).toEqual({ w: 210, h: 230 })
+  })
+})
 
 describe('buildGrid', () => {
   it('builds 10×10 tape cells for the fixture (SPEC §13 P2)', () => {
@@ -46,6 +60,14 @@ describe('buildGrid', () => {
     expect(grid.rowSpacing).toBeCloseTo(19, 12)
     expect(grid.cols).toBe(8)
     expect(grid.rows).toBe(10)
+  })
+
+  it('caps coarse mesh rows at the tape width so one strip covers a cell', () => {
+    const grid = fixtureGrid({ tapeWidth: 20, meshYCount: 8 })
+    // 190 mm over 8 probes = 27.1 mm between rows, wider than the roll.
+    expect(grid.rowSpacing).toBe(20)
+    expect(grid.rows).toBe(10)
+    for (const cell of grid.cells) expect(cell.y1 - cell.y0).toBeCloseTo(20, 12)
   })
 
   it('flags cells whose centre falls outside the mesh as unprobed', () => {

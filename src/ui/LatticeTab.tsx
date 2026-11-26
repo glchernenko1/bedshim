@@ -1,5 +1,21 @@
 import { useMemo, useState } from 'react'
-import { Alert, Button, Card, Col, InputNumber, Row, Segmented, Space, Statistic, Switch, Tag, Typography } from 'antd'
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Col,
+  InputNumber,
+  Row,
+  Segmented,
+  Space,
+  Statistic,
+  Switch,
+  Tooltip,
+  Typography,
+} from 'antd'
+import { buildCompositeLattice, buildCompositeSvg, type LatticePart } from '../core/geometry/composite'
+import type { Triangle } from '../core/geometry/extrude'
 import { buildLattice } from '../core/geometry/lattice'
 import { writeBinaryStl } from '../core/geometry/stl'
 import { buildGrid } from '../core/grid'
@@ -33,6 +49,9 @@ export function LatticeTab() {
   const [bridges, setBridges] = useState(4)
   const [bridgeWidth, setBridgeWidth] = useState(2)
   const [labels, setLabels] = useState(true)
+  const [composite, setComposite] = useState(false)
+  const [clearance, setClearance] = useState(0)
+  const [centerClearance, setCenterClearance] = useState(0)
 
   const measurement = measurements.find((item) => item.id === selectedId) ?? null
   const mesh = measurement?.mesh ?? null
@@ -49,9 +68,8 @@ export function LatticeTab() {
     })
   }, [mesh, planSettings])
 
-  const lattice = useMemo(() => {
-    if (!grid) return null
-    return buildLattice(grid, {
+  const style = useMemo(
+    () => ({
       wallThickness,
       height,
       outline,
@@ -61,10 +79,24 @@ export function LatticeTab() {
       bridges,
       bridgeWidth,
       labels,
-    })
-  }, [grid, wallThickness, height, outline, margin, frame, rim, bridges, bridgeWidth, labels])
+    }),
+    [wallThickness, height, outline, margin, frame, rim, bridges, bridgeWidth, labels],
+  )
 
-  const latticeSvg = useMemo(() => (lattice ? buildLatticeSvg(lattice.outline, lattice.sheet) : ''), [lattice])
+  const lattice = useMemo(() => (grid ? buildLattice(grid, style) : null), [grid, style])
+
+  const compositeLattice = useMemo(
+    () =>
+      grid && composite
+        ? buildCompositeLattice(grid, style, { clearance, centerClearance })
+        : null,
+    [grid, composite, style, clearance, centerClearance],
+  )
+
+  const latticeSvg = useMemo(() => {
+    if (compositeLattice) return buildCompositeSvg(compositeLattice)
+    return lattice ? buildLatticeSvg(lattice.outline, lattice.sheet) : ''
+  }, [lattice, compositeLattice])
 
   if (!measurement || !mesh) {
     return (
@@ -74,14 +106,38 @@ export function LatticeTab() {
     )
   }
 
-  const volume = lattice ? lattice.manifold.volume / 1000 : 0
+  const active = compositeLattice ?? lattice
+  const volume = active
+    ? (compositeLattice
+        ? compositeLattice.parts.reduce((sum, part) => sum + part.manifold.volume, 0) +
+          (compositeLattice.cross?.manifold.volume ?? 0)
+        : lattice!.manifold.volume) / 1000
+    : 0
   const weight = volume * PLA_DENSITY
-  const manifoldOk = lattice?.manifold.closed && lattice.manifold.connected
+  const warnings = compositeLattice?.warnings ?? lattice?.warnings ?? []
+  const largest = compositeLattice?.parts.reduce<LatticePart | null>(
+    (best, part) =>
+      !best || part.sheet.x1 - part.sheet.x0 > best.sheet.x1 - best.sheet.x0 ? part : best,
+    null,
+  )
 
-  const saveStl = (): void => {
+  const saveTriangles = (triangles: readonly Triangle[], name: string): void => {
+    const bytes = writeBinaryStl(triangles)
+    download(new Blob([bytes.buffer as ArrayBuffer], { type: 'model/stl' }), name)
+  }
+
+  const saveStl = (part?: LatticePart): void => {
     if (!lattice) return
-    const bytes = writeBinaryStl(lattice.triangles)
-    download(new Blob([bytes.buffer as ArrayBuffer], { type: 'model/stl' }), 'bedshim-lattice.stl')
+    if (part) {
+      saveTriangles(part.triangles, `bedshim-lattice-part-${part.index}.stl`)
+      return
+    }
+    saveTriangles(lattice.triangles, 'bedshim-lattice.stl')
+  }
+
+  const saveCross = (): void => {
+    if (!compositeLattice?.cross) return
+    saveTriangles(compositeLattice.cross.triangles, 'bedshim-lattice-center-cross.stl')
   }
 
   return (
@@ -90,7 +146,9 @@ export function LatticeTab() {
         <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           <Row gutter={[16, 12]}>
             <Col xs={12} sm={8} md={4}>
-              <Typography.Text type="secondary">{t('lattice.field.wall')}</Typography.Text>
+              <Tooltip title={t('lattice.field.wall.hint')} placement="topLeft">
+                <Typography.Text type="secondary">{t('lattice.field.wall')}</Typography.Text>
+              </Tooltip>
               <InputNumber
                 min={0.4}
                 max={2}
@@ -174,7 +232,9 @@ export function LatticeTab() {
               />
             </Col>
             <Col xs={12} sm={8} md={6}>
-              <Typography.Text type="secondary">{t('lattice.field.margin')}</Typography.Text>
+              <Tooltip title={t('lattice.field.margin.hint')} placement="topLeft">
+                <Typography.Text type="secondary">{t('lattice.field.margin')}</Typography.Text>
+              </Tooltip>
               <InputNumber
                 min={0.4}
                 max={30}
@@ -195,6 +255,43 @@ export function LatticeTab() {
                 />
               </div>
             </Col>
+            <Col xs={24} md={12}>
+              <Tooltip title={t('lattice.composite.hint')} placement="topLeft">
+                <Checkbox checked={composite} onChange={(event) => setComposite(event.target.checked)}>
+                  {t('lattice.field.composite')}
+                </Checkbox>
+              </Tooltip>
+            </Col>
+            <Col xs={12} sm={8} md={6}>
+              <Tooltip title={t('lattice.field.clearance.hint')} placement="topLeft">
+                <Typography.Text type="secondary">{t('lattice.field.clearance')}</Typography.Text>
+              </Tooltip>
+              <InputNumber
+                min={0}
+                max={0.5}
+                step={0.05}
+                precision={2}
+                disabled={!composite}
+                value={clearance}
+                onChange={(value) => value !== null && setClearance(value)}
+                style={{ width: '100%' }}
+              />
+            </Col>
+            <Col xs={12} sm={8} md={6}>
+              <Tooltip title={t('lattice.field.centerClearance.hint')} placement="topLeft">
+                <Typography.Text type="secondary">{t('lattice.field.centerClearance')}</Typography.Text>
+              </Tooltip>
+              <InputNumber
+                min={0}
+                max={0.5}
+                step={0.05}
+                precision={2}
+                disabled={!composite}
+                value={centerClearance}
+                onChange={(value) => value !== null && setCenterClearance(value)}
+                style={{ width: '100%' }}
+              />
+            </Col>
             <Col xs={24}>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 {t('lattice.field.hint')}
@@ -204,7 +301,15 @@ export function LatticeTab() {
 
           <Row gutter={[12, 8]}>
             <Col xs={12} sm={8} md={4}>
-              <Statistic title={t('lattice.stats.triangles')} value={lattice?.manifold.triangles ?? 0} />
+              <Statistic
+                title={t('lattice.stats.triangles')}
+                value={
+                  compositeLattice
+                    ? compositeLattice.parts.reduce((sum, part) => sum + part.manifold.triangles, 0) +
+                      (compositeLattice.cross?.manifold.triangles ?? 0)
+                    : (lattice?.manifold.triangles ?? 0)
+                }
+              />
             </Col>
             <Col xs={12} sm={8} md={4}>
               <Statistic title={t('lattice.stats.volume')} value={volume} precision={2} suffix="cm³" />
@@ -215,27 +320,95 @@ export function LatticeTab() {
             <Col xs={24} sm={8} md={6}>
               <Typography.Text type="secondary">{t('lattice.stats.box')}</Typography.Text>
               <div>
-                {lattice
-                  ? `${Math.round(lattice.manifold.box.maxX - lattice.manifold.box.minX)} × ${Math.round(lattice.manifold.box.maxY - lattice.manifold.box.minY)} × ${height} mm`
+                {active
+                  ? `${Math.round(active.manifold.box.maxX - active.manifold.box.minX)} × ${Math.round(active.manifold.box.maxY - active.manifold.box.minY)} × ${(active.manifold.box.maxZ - active.manifold.box.minZ).toFixed(1)} mm`
                   : '—'}
               </div>
             </Col>
-            <Col xs={12} sm={8} md={4}>
-              <Tag color={manifoldOk ? 'success' : 'error'}>
-                {manifoldOk ? t('lattice.manifold.ok') : t('lattice.manifold.bad')}
-              </Tag>
-            </Col>
+            {compositeLattice && (
+              <>
+                <Col xs={12} sm={8} md={4}>
+                  <Statistic title={t('lattice.composite.parts')} value={compositeLattice.parts.length} />
+                </Col>
+                <Col xs={24} sm={16} md={6}>
+                  <Typography.Text type="secondary">{t('lattice.composite.largest')}</Typography.Text>
+                  <div>
+                    {largest
+                      ? `${Math.round(largest.sheet.x1 - largest.sheet.x0)} × ${Math.round(largest.sheet.y1 - largest.sheet.y0)} × ${height} mm`
+                      : '—'}
+                  </div>
+                </Col>
+                {compositeLattice.cross && (
+                  <Col xs={24} sm={16} md={6}>
+                    <Typography.Text type="secondary">{t('lattice.cross.title')}</Typography.Text>
+                    <div>
+                      {Math.round(
+                        compositeLattice.cross.sheet.x1 - compositeLattice.cross.sheet.x0,
+                      )}{' '}
+                      ×{' '}
+                      {Math.round(
+                        compositeLattice.cross.sheet.y1 - compositeLattice.cross.sheet.y0,
+                      )}{' '}
+                      ×{' '}
+                      {(
+                        compositeLattice.cross.manifold.box.maxZ -
+                        compositeLattice.cross.manifold.box.minZ
+                      ).toFixed(1)}{' '}
+                      mm
+                      <div>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {t('lattice.cross.arm', {
+                            width: compositeLattice.cross.armWidth.toFixed(1),
+                          })}
+                        </Typography.Text>
+                      </div>
+                    </div>
+                  </Col>
+                )}
+              </>
+            )}
           </Row>
 
-          {lattice?.warnings.map((warning, index) => (
+          {warnings.map((warning, index) => (
             <Alert key={`${warning.code}-${index}`} type="warning" showIcon title={t(warning.code, warning.params)} />
           ))}
 
           <Space wrap>
-            <Button type="primary" onClick={saveStl} disabled={!lattice}>
-              {t('lattice.download.stl')}
-            </Button>
+            {compositeLattice ? (
+              <>
+                {compositeLattice.parts.map((part) => (
+                  <Button
+                    key={part.id}
+                    onClick={() => saveStl(part)}
+                    disabled={part.manifold.volume <= 0}
+                  >
+                    {t('lattice.composite.download', { index: part.index })} ·{' '}
+                    {Math.round(part.sheet.x1 - part.sheet.x0)}×{Math.round(part.sheet.y1 - part.sheet.y0)} mm
+                  </Button>
+                ))}
+                {compositeLattice.cross && (
+                  <Button onClick={saveCross} disabled={compositeLattice.cross.manifold.volume <= 0}>
+                    {t('lattice.cross.download')} ·{' '}
+                    {Math.round(
+                      compositeLattice.cross.sheet.x1 - compositeLattice.cross.sheet.x0,
+                    )}×
+                    {Math.round(
+                      compositeLattice.cross.sheet.y1 - compositeLattice.cross.sheet.y0,
+                    )}{' '}
+                    mm
+                  </Button>
+                )}
+              </>
+            ) : (
+              <Button type="primary" onClick={() => saveStl()} disabled={!lattice}>
+                {t('lattice.download.stl')}
+              </Button>
+            )}
           </Space>
+
+          {compositeLattice && (
+            <Alert type="warning" showIcon title={t('lattice.composite.note')} />
+          )}
 
           <Alert
             type="info"
@@ -251,7 +424,7 @@ export function LatticeTab() {
         </Space>
       </Card>
 
-      <Card title={t('lattice.preview.lattice')}>
+      <Card title={compositeLattice ? t('lattice.composite.preview') : t('lattice.preview.lattice')}>
         <div
           className="lattice-preview"
           style={{ background: '#fff', borderRadius: 6, overflow: 'auto', padding: 8 }}

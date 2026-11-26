@@ -51,6 +51,11 @@ export interface StripPlan {
   warnings: CoreMessage[]
 }
 
+/** Cut dimensions in mm, typed with micron precision (no float noise in the list). */
+function roundMM(value: number): number {
+  return Math.round(value * 1000) / 1000
+}
+
 /**
  * Turns a layer matrix into cut strips (SPEC §8.1).
  *
@@ -164,6 +169,10 @@ export function buildStrips(plan: Plan): StripPlan {
       acrossCount > 1 ? runWidth / acrossCount : runWidth >= grid.tapeWidth - 2 ? grid.tapeWidth : runWidth
     const length =
       run.orient === 'row' ? last.x1 - first.x0 : last.y1 - first.y0
+    // Millimetres with micron precision: the geometry is float, the cut list
+    // must not print 15.354999999999997 when the strip is 15.355 mm.
+    const cutWidth = roundMM(width)
+    const cutLength = roundMM(length)
     const range = first.label === last.label ? first.label : `${first.label}–${last.label}`
     for (let across = 1; across <= acrossCount; across++) {
       const piece: StripPiece = {
@@ -172,8 +181,8 @@ export function buildStrips(plan: Plan): StripPlan {
         line: run.line,
         from: run.from,
         to: run.to,
-        width,
-        length,
+        width: cutWidth,
+        length: cutLength,
         label: acrossCount > 1 ? `${range} (${across}/${acrossCount})` : range,
         cells: cells.map((cell) => cell.label),
         partial: cells.some((cell) => cell.partial),

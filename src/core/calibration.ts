@@ -1,5 +1,6 @@
 import { fitBridging, type BridgingResult } from './calibrate'
 import { buildGrid } from './grid'
+import { sameBounds } from './mesh/compat'
 import { createSurface } from './mesh/interpolate'
 import type { Mesh } from './mesh/types'
 
@@ -62,12 +63,7 @@ function boundsMatch(
   b: CalibrationMeasurement['mesh']['bounds'],
 ): boolean {
   if (!a || !b) return false
-  return (
-    Math.abs(a.minX - b.minX) < 1e-6 &&
-    Math.abs(a.maxX - b.maxX) < 1e-6 &&
-    Math.abs(a.minY - b.minY) < 1e-6 &&
-    Math.abs(a.maxY - b.maxY) < 1e-6
-  )
+  return sameBounds(a, b)
 }
 
 /** Why a pair cannot be fitted, or null when it can. */
@@ -90,13 +86,15 @@ export interface FitPairOptions {
   to: CalibrationMeasurement
   /** Known first-layer lift when only further layers are identifiable. */
   fixedT1?: number
+  /** Known further-layer lift when no second layer changed. */
+  fixedTs?: number
   /** σ kept when the pair cannot pin it down, mm. */
   fallbackSigma?: number
 }
 
 /** Fits t1/ts/σ for one pair; null when the pair cannot be fitted at all. */
 export function fitCalibrationPair(options: FitPairOptions): BridgingResult | null {
-  const { from, to, fixedT1, fallbackSigma } = options
+  const { from, to, fixedT1, fixedTs, fallbackSigma } = options
   if (calibrationProblem(from, to) !== null) return null
   const oldLayers = baseLayersOf(from)
   if (!from.applied || !oldLayers || !to.layers || !from.mesh.bounds) return null
@@ -117,6 +115,7 @@ export function fitCalibrationPair(options: FitPairOptions): BridgingResult | nu
     newLayers: to.layers,
     grid,
     fixedT1,
+    fixedTs,
     fallbackSigma,
   })
 }
@@ -126,6 +125,17 @@ export interface CalibrationValues {
   ts: number
   sigma: number
   rounding: 'round'
+}
+
+/**
+ * True when the pair measured everything a forward prediction needs: a cell
+ * actually gained (or lost) its first layer, and ts is measured — either by this
+ * pair or by a previous calibration that the pair could not improve. A
+ * one-layer plan with no previous ts, or a flat σ curve, would turn the
+ * forecast into a guess, so it stays hidden.
+ */
+export function calibrationMeasuresTape(result: BridgingResult): boolean {
+  return result.identifiable && result.fit.conclusive && result.fit.tsSource !== 'fallback'
 }
 
 /**
@@ -157,6 +167,7 @@ export type AutoCalibrationState =
 export interface AutoCalibrationOptions {
   measurements: readonly CalibrationMeasurement[]
   fixedT1?: number
+  fixedTs?: number
   fallbackSigma?: number
 }
 
@@ -175,6 +186,7 @@ export function autoCalibration(options: AutoCalibrationOptions): AutoCalibratio
   const result = fitCalibrationPair({
     ...pair,
     fixedT1: options.fixedT1,
+    fixedTs: options.fixedTs,
     fallbackSigma: options.fallbackSigma,
   })
   if (!result) return { status: 'blocked', problem: 'fromNoPlan', ...pair }

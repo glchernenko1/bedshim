@@ -37,6 +37,12 @@ export interface LatticeStyle {
   bridgeWidth?: number
   /** Cut row/column stencil labels in the cell rim. Default true. */
   labels?: boolean
+  /**
+   * X centre of the FRONT arrow/notch. Defaults to the sheet centre. The
+   * composite lattice moves it away from the split so the edge dovetail has
+   * solid frame material.
+   */
+  frontCentre?: number
 }
 
 export interface LatticeResult {
@@ -186,9 +192,9 @@ function cellLabelHoles(
 }
 
 /** Arrow cut in the front margin of a plate-sized sheet. */
-function frontArrow(plateW: number, margin: number): Polygon | null {
+function frontArrow(plateW: number, margin: number, frontCentre?: number): Polygon | null {
   if (margin < 2.5) return null
-  const centre = plateW / 2
+  const centre = frontCentre ?? plateW / 2
   const bottom = Math.max(0.8, Math.min(margin - 1.5, margin * 0.25))
   const top = Math.min(margin - 1, margin * 0.75)
   const shaft = Math.min(1.2, (top - bottom) * 0.18)
@@ -207,10 +213,10 @@ function frontArrow(plateW: number, margin: number): Polygon | null {
 }
 
 /** V-shaped notch in the front edge, used for tight sheets and the frame. */
-function edgeNotch(sheet: Rect, depth = 2.5): Polygon | null {
+function edgeNotch(sheet: Rect, depth = 2.5, frontCentre?: number): Polygon | null {
   const width = Math.min(3, (sheet.x1 - sheet.x0) * 0.06)
   if (depth < 0.8 || width < 0.8) return null
-  const centre = (sheet.x0 + sheet.x1) / 2
+  const centre = frontCentre ?? (sheet.x0 + sheet.x1) / 2
   return [orient([[centre - width, sheet.y0], [centre + width, sheet.y0], [centre, sheet.y0 + depth]], true)]
 }
 
@@ -240,6 +246,7 @@ function buildSimple(
   margin: number,
   front: boolean,
   labels: boolean,
+  frontCentre?: number,
 ): Shape | null {
   const plate = grid.plate
   const cells = cellBounds(grid)
@@ -274,7 +281,9 @@ function buildSimple(
   const cutouts = [...holes, ...labelHoles]
   if (front) {
     const marker =
-      mode === 'plate' ? frontArrow(sheet.x1 - sheet.x0, grid.meshBounds.minY) : edgeNotch(sheet)
+      mode === 'plate'
+        ? frontArrow(sheet.x1 - sheet.x0, grid.meshBounds.minY, frontCentre)
+        : edgeNotch(sheet, 2.5, frontCentre)
     if (marker) cutouts.push(marker)
   }
   return { outline: difference([orient(rectangle(sheet.x0, sheet.y0, sheet.x1, sheet.y1), true)], cutouts), sheet }
@@ -314,7 +323,9 @@ function buildFrame(
   if (rimRect.y0 - innerFrame.y0 < mergeGap) innerFrame.y0 = rimRect.y0
   if (innerFrame.y1 - rimRect.y1 < mergeGap) innerFrame.y1 = rimRect.y1
 
-  const notch = style.front ? edgeNotch({ x0: 0, y0: 0, x1: plate.w, y1: plate.h }) : null
+  const notch = style.front
+    ? edgeNotch({ x0: 0, y0: 0, x1: plate.w, y1: plate.h }, 2.5, style.frontCentre)
+    : null
   const frameHoles: Polygon[] = [[orient(rectangle(innerFrame.x0, innerFrame.y0, innerFrame.x1, innerFrame.y1), true)]]
   if (notch) frameHoles.push(notch)
   const frameRing = difference([orient(rectangle(0, 0, plate.w, plate.h), true)], frameHoles)
@@ -407,11 +418,21 @@ export function buildLattice(grid: Grid, style: LatticeStyle = {}): LatticeResul
     bridges,
     bridgeWidth,
     labels,
+    frontCentre: style.frontCentre ?? plate.w / 2,
   }
 
   const shape = useFrame
-    ? (buildFrame(grid, holes, resolved) ?? buildSimple(grid, holes, 'grid', margin, front, labels))
-    : buildSimple(grid, holes, outlineMode === 'plate' ? 'plate' : 'grid', margin, front, labels)
+    ? (buildFrame(grid, holes, resolved) ??
+      buildSimple(grid, holes, 'grid', margin, front, labels, style.frontCentre))
+    : buildSimple(
+        grid,
+        holes,
+        outlineMode === 'plate' ? 'plate' : 'grid',
+        margin,
+        front,
+        labels,
+        style.frontCentre,
+      )
 
   if (!shape) {
     return {

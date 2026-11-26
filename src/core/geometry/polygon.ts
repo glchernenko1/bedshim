@@ -1,4 +1,8 @@
-import { difference as clipDifference, union as clipUnion } from 'polygon-clipping'
+import {
+  difference as clipDifference,
+  intersection as clipIntersection,
+  union as clipUnion,
+} from 'polygon-clipping'
 
 /** A closed ring of `[x, y]` points in mm. The first point is not repeated. */
 export type Ring = Array<[number, number]>
@@ -88,6 +92,20 @@ export function difference(subject: Polygon, holes: readonly Polygon[]): MultiPo
 export function union(polygons: readonly Polygon[]): MultiPolygon {
   if (polygons.length === 0) return []
   const result = clipUnion(polygons[0]!, ...(polygons.slice(1) as unknown as Polygon[])) as MultiPolygon
+  return normalizeMultiPolygon(result)
+}
+
+/** Overlap of two whole geometries, including polygons that already have holes. */
+export function intersection(a: MultiPolygon, b: MultiPolygon): MultiPolygon {
+  if (a.length === 0 || b.length === 0) return []
+  const result = clipIntersection(a, b) as MultiPolygon
+  return normalizeMultiPolygon(result)
+}
+
+/** Subtracts whole geometries (holes are allowed in both operands). */
+export function differenceGeom(subject: MultiPolygon, cutters: readonly MultiPolygon[]): MultiPolygon {
+  if (subject.length === 0 || cutters.length === 0) return normalizeMultiPolygon(subject)
+  const result = clipDifference(subject, ...cutters) as MultiPolygon
   return normalizeMultiPolygon(result)
 }
 

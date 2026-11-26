@@ -1,8 +1,78 @@
 # bedshim — status, decisions and handoff
 
-Last updated: 2026-11-25. `SPEC.md` is the contract; this file
+Last updated: 2026-11-27. `SPEC.md` is the contract; this file
 records the implementation state, every deliberate deviation and what is left.
 Read this first when resuming.
+
+## Current state — 2026-11-27 (deploy 0.8.0)
+
+The app is now an **online** client-side build: the header badge is the build
+version (`v0.8.0`, injected from `package.json` by Vite), not the old
+"offline · no backend" label. GitHub Pages still builds on every push to
+`main` (`.github/workflows/pages.yml`).
+
+### Measurement safety
+
+- `t1` can no longer become unknowable after the first gluing. A plan that
+  would leave no 0/1 contrast reserves a first-layer witness: a 0-layer cell
+  with four 1-layer neighbours and a ramp outward, step ≤ 1, only on probed,
+  non-extrapolated, non-clipped cells, at most 25 cells. It is reserved when
+  `t1` is unknown or the plan changes the bed; a stable calibrated bed with an
+  untaped cell is left alone. If no safe witness fits, the plan warns instead
+  of cutting a deep hole.
+- `fixedT1` carries a known first layer; `fixedTs` carries the measured further
+  layer when no cell gained a second layer. `FitResult.tsSource` reports
+  `fit | previous | fallback`; a fallback `ts` keeps the forecast locked.
+- A pair is conclusive only when every parameter actually fitted is above
+  `2 × noise`, with `R² > 0.5`. A noisy single-cell witness does not pass.
+- Auto and Pro apply the same values; `calibrationMeasuresTape` requires an
+  identifiable pair, a conclusive fit and a measured (not fallback) `ts`.
+
+### Mesh compatibility and Qidi
+
+- `src/core/mesh/compat.ts` refuses a stored mesh that differs from the new
+  mesh in probe grid, bounds or algorithm; the conflict modal explains why and
+  offers a fresh start (13 tests).
+- `fixtures/qidi-q1pro-mesh.cfg`: Q1 Pro, 250 × 250 plate, 8 × 8 probes over
+  X 20–230 and Y 15–229.97. The ideal grid is 12 × 12; the plan stays on
+  20 × 20 mm cells.
+- 3D bed view is not flipped; hover reports X/Y/Z; the probe-count card and the
+  Auto probe-mismatch popup show the ideal `probe_count` in a copyable
+  `[bed_mesh]` block.
+
+### Composite lattice
+
+The Lattice tab has a **Composite lattice** checkbox (tooltip explains that it
+is for a bed larger than the build area). It produces **four quadrants plus a
+separate centre cross**:
+
+- The split runs on the cell boundary nearest the middle of the sheet, so no
+  cell is bisected; the four seams are straight.
+- Dovetails sit in the **solid outer band** at the four ends of the seams, not
+  in the cell field. The band is the frame width, the 6 mm extend border or
+  the tight margin. Every part has exactly one tenon and one mortise
+  (pinwheel). If the band is too thin, that seam falls back to a plain butt
+  joint with a warning.
+- **Dovetail clearance** offsets only the tenon; the mortise stays nominal.
+  Default 0, UI 0–0.5 mm. For the Neptune 20 mm cells the band is 6 mm and the
+  joint is about 2.2 mm neck / 4.2 mm head / 6.3 mm deep.
+- The **centre cross** is a separate part. It is a long, thin plus (about
+  16 × 16 mm overall, arm width 3.7 mm for 20 mm cells). It has legs standing
+  in the four centre cell holes and a solid top skin, with a cross-shaped
+  tunnel on the underside. Tunnel width = one wall thickness (sum of the two
+  cut half-walls) + `2 × centreClearance`; the outer body stays fixed.
+  Total height = 0.6 mm legs + 0.6 mm skin. The FRONT marker is shifted away
+  from the bottom dovetail.
+- Downloads are per part: four quadrants plus `bedshim-lattice-center-cross.stl`,
+  each moved to the print origin. The preview pulls the quadrants apart and
+  highlights the orange centre cross. The technical "closed manifold" tag was
+  removed; real problems still appear as warnings.
+- `src/core/geometry/composite.ts` + `composite.test.ts` cover split lines,
+  one tenon/mortise per part, no overlap, clearance only on the tenon, the
+  centre tunnel, manifold parts and the preview.
+
+Verification: **197 tests in 18 files**, `npm run typecheck` and `npm run build`
+pass. Deploy by pushing `main`; Pages runs tests and build again.
 
 ## Next session — start here (2026-11-25)
 

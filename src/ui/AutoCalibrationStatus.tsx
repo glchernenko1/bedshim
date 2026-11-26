@@ -72,10 +72,22 @@ export function AutoCalibrationStatus({ state }: { state: AutoCalibrationState |
       type="success"
       showIcon
       title={t('auto.status.done.title', params)}
-      description={t('auto.status.done.body', {
-        ...params,
-        sigma: state.values.sigma.toFixed(1),
-      })}
+      description={
+        <Space orientation="vertical" size={4}>
+          <span>
+            {t('auto.status.done.body', {
+              ...params,
+              sigma: state.values.sigma.toFixed(1),
+            })}
+          </span>
+          {state.result.fit.tsSource === 'previous' && (
+            <span>{t('auto.status.done.tsKept', { ts: state.result.fit.ts.toFixed(4) })}</span>
+          )}
+          {state.result.fit.tsSource === 'fallback' && (
+            <span>{t('auto.status.done.firstOnly')}</span>
+          )}
+        </Space>
+      }
     />
   )
 }

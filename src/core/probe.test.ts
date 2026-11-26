@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bedMeshSnippet, idealProbeCount, probeAdvice, probeEstimate } from './probe'
+import { bedMeshSnippet, idealProbeCount, probeAdvice, probeEstimate, probeMismatch, probeVerdict } from './probe'
 
 const bounds = { minX: 10, maxX: 210, minY: 21, maxY: 211 }
 
@@ -43,10 +43,65 @@ describe('probeAdvice', () => {
   })
 })
 
+describe('probeVerdict', () => {
+  const current = probeEstimate(bounds, 20).points
+
+  it('calls the tape in use good, never fine', () => {
+    expect(probeVerdict(current, current)).toBe('good')
+  })
+
+  it('keeps the SPEC §5.4 ordering around the current tape', () => {
+    expect(probeVerdict(probeEstimate(bounds, 50).points, current)).toBe('coarse')
+    expect(probeVerdict(probeEstimate(bounds, 15).points, current)).toBe('fine')
+    expect(probeVerdict(probeEstimate(bounds, 10).points, current)).toBe('slow')
+  })
+
+  it('does not label the owner’s 12×12 Qidi mesh fine for a 20 mm tape', () => {
+    // 210 × 214.97 mm: the round-to-one-probe-per-cell count is exactly 12×12.
+    const qidi = { minX: 20, maxX: 230, minY: 15, maxY: 229.97 }
+    const ideal = probeEstimate(qidi, 20)
+    expect(ideal.idealX).toBe(12)
+    expect(ideal.idealY).toBe(12)
+    expect(probeVerdict(ideal.points, ideal.points)).toBe('good')
+    expect(probeVerdict(probeEstimate(qidi, 15).points, ideal.points)).toBe('fine')
+    expect(probeVerdict(probeEstimate(qidi, 10).points, ideal.points)).toBe('slow')
+  })
+})
+
+describe('probeMismatch', () => {
+  const qidi = { minX: 20, maxX: 230, minY: 15, maxY: 229.97 }
+
+  it('flags the owner’s 8×8 mesh for a 20 mm tape', () => {
+    expect(probeMismatch(qidi, 20, 8, 8)).toEqual({
+      idealX: 12,
+      idealY: 12,
+      points: 144,
+      currentX: 8,
+      currentY: 8,
+    })
+  })
+
+  it('accepts a mesh within one probe of the ideal', () => {
+    expect(probeMismatch(qidi, 20, 12, 12)).toBeNull()
+    expect(probeMismatch(qidi, 20, 11, 13)).toBeNull()
+    expect(probeMismatch(bounds, 20, 11, 11)).toBeNull()
+  })
+
+  it('flags a mismatch on either axis, finer or coarser', () => {
+    expect(probeMismatch(qidi, 20, 8, 12)).not.toBeNull()
+    expect(probeMismatch(qidi, 20, 12, 16)).not.toBeNull()
+  })
+})
+
 describe('bedMeshSnippet', () => {
   it('changes only the probe count and keeps the mesh bounds', () => {
     expect(bedMeshSnippet(bounds, 11, 11)).toBe(
       ['[bed_mesh]', 'mesh_min: 10, 21', 'mesh_max: 210, 211', 'probe_count: 11, 11', 'algorithm: bicubic'].join('\n'),
     )
+  })
+
+  it('keeps fractional bounds exact instead of rounding them', () => {
+    const qidi = { minX: 20, maxX: 230, minY: 15, maxY: 229.97 }
+    expect(bedMeshSnippet(qidi, 12, 12)).toContain('mesh_max: 230, 229.97')
   })
 })

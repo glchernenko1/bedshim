@@ -31,13 +31,27 @@ export const MESSAGE_CODES = [
   // plan
   'plan.notice.unprobed',
   'plan.notice.clamped',
+  'plan.notice.headroom',
   'plan.notice.inconsistent',
   'plan.notice.extrapolated',
+  'plan.notice.referenceZone',
+  'plan.notice.referenceZonePeel',
+  'plan.notice.referenceCell',
+  'plan.notice.noReferenceZone',
   // strips
   'strips.warn.partial',
   // lattice
   'lattice.warn.notClosed',
   'lattice.warn.disconnected',
+  'lattice.warn.compositeNoGridLine',
+  'lattice.warn.compositePlainSeam',
+  'lattice.warn.compositeEmptyPart',
+  'lattice.warn.partNotClosed',
+  'lattice.warn.partDisconnected',
+  'lattice.warn.crossNoCells',
+  'lattice.warn.crossNoRoom',
+  'lattice.warn.crossNotClosed',
+  'lattice.warn.crossDisconnected',
   // probe recommendation
   'probe.notice.overMeasuring',
   'probe.notice.coarserThanTape',
@@ -49,6 +63,7 @@ export const MESSAGE_CODES = [
   // calibration fit
   'calibrate.error.noChanges',
   'calibrate.notice.singleParameter',
+  'calibrate.notice.tsKept',
   'calibrate.warn.negative',
   'calibrate.warn.inconclusive',
   'calibrate.warn.onlyTs',

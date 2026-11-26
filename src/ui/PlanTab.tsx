@@ -23,26 +23,26 @@ import { createSurface } from '../core/mesh/interpolate'
 import { diffAgainstPhysical, plan, type Rounding } from '../core/plan'
 import { predictPlan, predictedMeshBlock } from '../core/forward'
 import type { AutoCalibrationState } from '../core/calibration'
-import { bedMeshSnippet, idealProbeCount, probeAdvice, probeEstimate } from '../core/probe'
+import { bedMeshSnippet, idealProbeCount, probeAdvice, probeEstimate, probeVerdict, type ProbeVerdict } from '../core/probe'
 import { useT } from '../i18n'
-import { useAppStore } from '../state/store'
+import { TAPE_WIDTH_MAX, TAPE_WIDTH_MIN, useAppStore } from '../state/store'
 import { AutoCalibrationStatus } from './AutoCalibrationStatus'
 import { LayerLegend, PlanGridCanvas } from './PlanGridCanvas'
 import { PredictedRelief } from './PredictedRelief'
 import { ResidualMapCanvas } from './ResidualMapCanvas'
 import { StripsCard } from './StripsCard'
+import { PlanCeilingNotice } from './PlanCeilingNotice'
 
-type Verdict = 'coarse' | 'good' | 'fine' | 'slow'
 type MapMode = 'residual' | 'relief'
 
-function verdictOf(points: number): Verdict {
-  if (points <= 25) return 'coarse'
-  if (points <= 121) return 'good'
-  if (points <= 420) return 'fine'
-  return 'slow'
-}
-
 const fmt = (value: number, digits = 4): string => value.toFixed(digits)
+
+/**
+ * Auto does not expose a layer ceiling: it uses a safety cap high enough for any
+ * realistic warp, so the plan only takes the layers it actually needs. Pro keeps
+ * the manual setting and its headroom warning.
+ */
+const AUTO_MAX_LAYERS = 24
 
 export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
   const t = useT()
@@ -60,10 +60,17 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
   const setRounding = useAppStore((state) => state.setRounding)
   const sigma = useAppStore((state) => state.sigma)
   const setSigma = useAppStore((state) => state.setSigma)
+  const bridgingMeasured = useAppStore((state) => state.bridgingMeasured)
+  /** Without measured t1/ts and σ the forward model is a guess, not a forecast. */
+  const canPredict = material.calibrated && bridgingMeasured
 
   const planSettings = useAppStore((state) => state.planSettings)
   const setPlanSettings = useAppStore((state) => state.setPlanSettings)
   const { tapeWidth, plateW, plateH, percentile, maxLayers, extendToPlate } = planSettings
+  const effectiveMaxLayers = isAuto ? AUTO_MAX_LAYERS : maxLayers
+  // The plate has to contain the probed rectangle; the inputs cannot go below it.
+  const meshMaxX = mesh?.bounds ? Math.ceil(mesh.bounds.maxX) : 50
+  const meshMaxY = mesh?.bounds ? Math.ceil(mesh.bounds.maxY) : 50
   const [mapMode, setMapMode] = useState<MapMode>('residual')
 
   const surface = useMemo(() => (mesh?.bounds ? createSurface(mesh) : null), [mesh])
@@ -101,15 +108,15 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
       material,
       referencePercentile: percentile,
       rounding,
-      maxLayers,
+      maxLayers: effectiveMaxLayers,
       baseLayers,
     })
-  }, [surface, grid, material, percentile, rounding, maxLayers, baseLayers])
+  }, [surface, grid, material, percentile, rounding, effectiveMaxLayers, baseLayers])
 
   const prediction = useMemo(() => {
-    if (!surface || !result) return null
+    if (!surface || !result || !canPredict) return null
     return predictPlan(result, surface, { sigma })
-  }, [surface, result, sigma])
+  }, [surface, result, sigma, canPredict])
 
   const diff = useMemo(() => {
     if (!result) return null
@@ -147,6 +154,7 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
     if (!mesh?.bounds) return []
     const bounds = mesh.bounds
     const widths = [...new Set([50, 20, 15, 10, 5, tapeWidth])].sort((a, b) => b - a)
+    const currentPoints = probeEstimate(bounds, tapeWidth).points
     return widths.map((width) => {
       const estimate = probeEstimate(bounds, width)
       return {
@@ -155,7 +163,7 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
         grid: `${estimate.idealX}×${estimate.idealY}`,
         points: estimate.points,
         minutes: Math.round(estimate.minutes),
-        verdict: verdictOf(estimate.points),
+        verdict: probeVerdict(estimate.points, currentPoints),
         current: width === tapeWidth,
       }
     })
@@ -181,22 +189,26 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
     )
   }
 
-  const messages = [...(grid?.warnings ?? []), ...(result?.warnings ?? []), ...(surface?.notices ?? []), ...advice]
+  const messages = [...(grid?.warnings ?? []), ...(result?.warnings ?? []), ...(surface?.notices ?? []), ...advice].filter(
+    (message) => message.code !== 'plan.notice.headroom',
+  )
+  const headroom = result?.warnings.find((message) => message.code === 'plan.notice.headroom') ?? null
   const deadband = deadbandOf(material)
 
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       {isAuto && <AutoCalibrationStatus state={auto} />}
+      {!isAuto && headroom && measurement && <PlanCeilingNotice message={headroom} measurement={measurement} />}
       <Card title={t('plan.inputs.title')}>
         <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           <Row gutter={[16, 12]}>
             <Col xs={12} sm={8} md={8}>
               <Typography.Text type="secondary">{t('plan.field.plateW')}</Typography.Text>
-              <InputNumber min={50} max={500} value={plateW} onChange={(value) => value && setPlanSettings({ plateW: value })} style={{ width: '100%' }} />
+              <InputNumber min={meshMaxX} max={500} value={plateW} onChange={(value) => value && setPlanSettings({ plateW: value })} style={{ width: '100%' }} />
             </Col>
             <Col xs={12} sm={8} md={8}>
               <Typography.Text type="secondary">{t('plan.field.plateH')}</Typography.Text>
-              <InputNumber min={50} max={500} value={plateH} onChange={(value) => value && setPlanSettings({ plateH: value })} style={{ width: '100%' }} />
+              <InputNumber min={meshMaxY} max={500} value={plateH} onChange={(value) => value && setPlanSettings({ plateH: value })} style={{ width: '100%' }} />
             </Col>
             <Col xs={24} sm={8} md={8}>
               <Typography.Text type="secondary">{t('plan.field.extend')}</Typography.Text>
@@ -209,10 +221,16 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
             </Col>
           </Row>
 
+          {mesh?.bounds && (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {t('plan.field.plate.min', { x: meshMaxX, y: meshMaxY })}
+            </Typography.Text>
+          )}
+
           <Row gutter={[16, 12]}>
             <Col xs={12} sm={8} md={8}>
               <Typography.Text type="secondary">{t('plan.field.tape')}</Typography.Text>
-              <InputNumber min={5} max={100} step={5} value={tapeWidth} onChange={(value) => value && setPlanSettings({ tapeWidth: value })} style={{ width: '100%' }} />
+              <InputNumber min={TAPE_WIDTH_MIN} max={TAPE_WIDTH_MAX} step={5} value={tapeWidth} onChange={(value) => value && setPlanSettings({ tapeWidth: value })} style={{ width: '100%' }} />
             </Col>
             <Col xs={12} sm={8} md={8}>
               <Typography.Text type="secondary">{t('plan.field.nominal')}</Typography.Text>
@@ -232,10 +250,12 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
                 style={{ width: '100%' }}
               />
             </Col>
-            <Col xs={24} sm={8} md={8}>
-              <Typography.Text type="secondary">{t('plan.field.maxLayers')}</Typography.Text>
-              <InputNumber min={1} max={12} value={maxLayers} onChange={(value) => value && setPlanSettings({ maxLayers: value })} style={{ width: '100%' }} />
-            </Col>
+            {!isAuto && (
+              <Col xs={24} sm={8} md={8}>
+                <Typography.Text type="secondary">{t('plan.field.maxLayers')}</Typography.Text>
+                <InputNumber min={1} max={24} value={maxLayers} onChange={(value) => value && setPlanSettings({ maxLayers: value })} style={{ width: '100%' }} />
+              </Col>
+            )}
           </Row>
 
           <Row gutter={[16, 12]}>
@@ -452,7 +472,23 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
               )}
 
               {messages.map((message, index) => (
-                <Alert key={`${message.code}-${index}`} type="info" showIcon title={t(message.code, message.params)} />
+                <Alert
+                  key={`${message.code}-${index}`}
+                  type={
+                    message.code === 'plan.notice.clamped' ||
+                    message.code === 'plan.notice.headroom' ||
+                    message.code === 'plan.notice.referenceZonePeel' ||
+                    message.code === 'plan.notice.noReferenceZone'
+                      ? 'warning'
+                      : 'info'
+                  }
+                  showIcon
+                  title={
+                    isAuto && message.code === 'plan.notice.clamped'
+                      ? t('plan.notice.clampedAuto', message.params)
+                      : t(message.code, message.params)
+                  }
+                />
               ))}
 
               <Space orientation="vertical" size={6} style={{ width: '100%' }}>
@@ -464,6 +500,11 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
                 </Typography.Text>
                 <PlanGridCanvas plan={result} />
                 <LayerLegend maxUsed={result.stats.maxUsed} />
+                {result.referenceZone && (
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {t('plan.reference.legend')}
+                  </Typography.Text>
+                )}
               </Space>
 
               <Space size={8} wrap>
@@ -478,8 +519,15 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
 
           <StripsCard plan={result} />
 
-          {prediction && (
-            <Card title={t('plan.forward.title')}>
+          <Card title={t('plan.forward.title')}>
+            {!prediction ? (
+              <Alert
+                type="info"
+                showIcon
+                title={t('plan.forward.locked.title')}
+                description={t(isAuto ? 'plan.forward.locked.auto' : 'plan.forward.locked.pro')}
+              />
+            ) : (
               <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                 <Row gutter={[12, 8]}>
                   <Col xs={12} sm={8} md={4}>
@@ -597,44 +645,42 @@ export function PlanTab({ auto }: { auto: AutoCalibrationState | null }) {
                   {predictedMeshBlock(prediction, mesh)}
                 </Typography.Paragraph>
               </Space>
-            </Card>
-          )}
+            )}
+          </Card>
 
-          {!isAuto && (
-            <Card title={t('probe.title')}>
-              <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-                <Typography.Text type="secondary">{t('probe.hint')}</Typography.Text>
-                <Table
-                  size="small"
-                  pagination={false}
-                  scroll={{ x: 520 }}
-                  dataSource={probeRows}
-                  columns={[
-                    {
-                      title: t('probe.col.tape'),
-                      dataIndex: 'width',
-                      render: (value: number, row) => (
-                        <Space size={6}>
-                          {`${value} mm`}
-                          {row.current && <Tag color="blue">{t('probe.current')}</Tag>}
-                        </Space>
-                      ),
-                    },
-                    { title: t('probe.col.grid'), dataIndex: 'grid' },
-                    { title: t('probe.col.points'), dataIndex: 'points', align: 'right' },
-                    { title: t('probe.col.time'), dataIndex: 'minutes', align: 'right', render: (value: number) => `≈ ${value} ${t('probe.minutes')}` },
-                    { title: t('probe.col.verdict'), dataIndex: 'verdict', render: (value: Verdict) => t(`probe.verdict.${value}`) },
-                  ]}
-                />
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {t('probe.snippet')}
-                </Typography.Text>
-                <Typography.Paragraph code copyable style={{ whiteSpace: 'pre-wrap', marginBottom: 0, maxHeight: 220, overflow: 'auto' }}>
-                  {snippet}
-                </Typography.Paragraph>
-              </Space>
-            </Card>
-          )}
+          <Card title={t('probe.title')}>
+            <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+              <Typography.Text type="secondary">{t('probe.hint')}</Typography.Text>
+              <Table
+                size="small"
+                pagination={false}
+                scroll={{ x: 520 }}
+                dataSource={probeRows}
+                columns={[
+                  {
+                    title: t('probe.col.tape'),
+                    dataIndex: 'width',
+                    render: (value: number, row) => (
+                      <Space size={6}>
+                        {`${value} mm`}
+                        {row.current && <Tag color="blue">{t('probe.current')}</Tag>}
+                      </Space>
+                    ),
+                  },
+                  { title: t('probe.col.grid'), dataIndex: 'grid' },
+                  { title: t('probe.col.points'), dataIndex: 'points', align: 'right' },
+                  { title: t('probe.col.time'), dataIndex: 'minutes', align: 'right', render: (value: number) => `≈ ${value} ${t('probe.minutes')}` },
+                  { title: t('probe.col.verdict'), dataIndex: 'verdict', render: (value: ProbeVerdict) => t(`probe.verdict.${value}`) },
+                ]}
+              />
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('probe.snippet')}
+              </Typography.Text>
+              <Typography.Paragraph code copyable style={{ whiteSpace: 'pre-wrap', marginBottom: 0, maxHeight: 220, overflow: 'auto' }}>
+                {snippet}
+              </Typography.Paragraph>
+            </Space>
+          </Card>
         </>
       )}
 

@@ -3,7 +3,6 @@
 export const en: Record<string, string> = {
   'app.title': 'bedshim',
   'app.subtitle': 'Klipper bed mesh → Kapton shim plan → printable lattice',
-  'app.offline': 'offline · no backend',
   'app.mode.pro': 'Pro',
   'app.mode.auto': 'Auto',
   'app.tab.mesh': 'Mesh',
@@ -33,6 +32,7 @@ export const en: Record<string, string> = {
   'plan.material.tsMissing': 'Marked as measured, but ts is empty: every further layer is counted as t1.',
   'plan.field.plateW': 'Plate width, mm',
   'plan.field.plateH': 'Plate height, mm',
+  'plan.field.plate.min': 'The mesh reaches X {x} mm / Y {y} mm, so the plate cannot be smaller.',
   'plan.field.maxLayers': 'Max layers',
   'plan.field.extend': 'Extend to plate edges',
   'plan.extend.warning.title': 'Margin is extrapolated',
@@ -90,6 +90,11 @@ export const en: Record<string, string> = {
   'forward.notice.undershoot': 'The plate follows the plan, but cells stay slightly below the target: floor undershoots by design, and bridging keeps some cells outside the deadband even with round. The next iteration adds the difference.',
   'plan.forward.delivered': 'Lift the plate delivers',
   'plan.forward.title': 'Prediction after taping',
+  'plan.forward.locked.title': 'Forecast needs a measured bridging',
+  'plan.forward.locked.auto':
+    'Bridging σ comes from calibration, and calibration needs a plan that puts two tape layers in at least one cell, plus a new mesh after it. Glue the plan, take the next mesh — Auto fits the material and σ, and the forecast appears here. If σ cannot be pinned down, the calibration warnings say why.',
+  'plan.forward.locked.pro':
+    'Bridging σ comes from calibration, and calibration needs a plan that puts two tape layers in at least one cell, plus a new mesh after it. Glue the plan, take the next mesh, then fit the pair on the Calibration tab; the forecast appears here. If σ cannot be pinned down, the calibration warnings say why.',
   'plan.forward.achievable': 'Cells inside the deadband',
   'plan.forward.max': 'Worst residual',
   'plan.forward.rms': 'RMS residual',
@@ -137,6 +142,10 @@ export const en: Record<string, string> = {
   'auto.status.done.title': 'Auto calibration applied: {previous} → {current}',
   'auto.status.done.body':
     'σ = {sigma} mm and nearest-layer rounding are applied; the plan uses them. Pro shows the same fit and applies identical numbers.',
+  'auto.status.done.tsKept':
+    'This pair had no second-layer change, so the further-layer thickness stayed at the measured {ts} mm; the first layer was re-fitted.',
+  'auto.status.done.firstOnly':
+    'This pair only changed the first layer, so the forecast stays locked until a second layer changes too.',
   'calib.title': 'Tape calibration',
   'app.tab.calibration': 'Calibration',
   'calib.loop': 'The loop: paste the first mesh (M1) → plan → Mark plan as glued → paste the new mesh (M2) → fit t1/ts/σ here → apply → plan again with the measured material and bridging. The fit compares the previous measurement with the selected one.',
@@ -170,8 +179,9 @@ export const en: Record<string, string> = {
   'calibrate.warn.sigmaWeak': 'σ cannot be pinned down from this pair (the fit is flat): keeping {sigma} mm. A finer probe grid or isolated tape patches make it measurable.',
   'calibrate.error.noChanges': 'No cell changed its layer count between the two meshes — there is nothing to fit.',
   'calibrate.notice.singleParameter': 'No cell gained a second layer, so only t1 is measurable; ts is set equal to it.',
+  'calibrate.notice.tsKept': 'No cell gained a second layer, so ts stays at the measured {ts} mm; t1 was re-fitted at {t1} mm.',
   'calibrate.warn.negative': 'The fit produced a non-positive thickness (t1 = {t1}, ts = {ts}). Usually the maps are swapped or the plan was not applied.',
-  'calibrate.warn.inconclusive': 't1 = {t1} mm is not clearly above the noise ({noise} mm): use a larger area or more layers.',
+  'calibrate.warn.inconclusive': 'The fitted thickness is not clearly above the noise (t1 = {t1} mm, ts = {ts} mm, noise {noise} mm): use a larger area or more layers.',
   'calibrate.warn.onlyTs': 'Every cell already had tape, so only ts is measurable (ts = {ts} mm); the first-layer lift is unknown — measure it on a bare area first.',
   'calibrate.warn.poorFit': 'The known layer states do not explain the measured difference (R² = {r2}, noise {noise} mm). Check that the plan settings and the applied layers are exactly what was on the bed; the fit is refused rather than guessed.',
   'calibrate.notice.tsOnly': 'Only ts was measurable (t1 = {t1} mm taken from the current material, ts = {ts} mm).',
@@ -189,10 +199,20 @@ export const en: Record<string, string> = {
   'probe.verdict.fine': 'fine',
   'probe.verdict.slow': 'only if you are ready to wait',
   'probe.snippet': 'Copy into printer.cfg:',
+  'probe.notice.popup.title': 'Probe grid does not match the tape',
+  'probe.notice.popup.body':
+    'The mesh is {currentX}×{currentY}, but {tape} mm tape needs {idealX}×{idealY} ({points} points) over this area.',
+  'probe.notice.popup.after':
+    'After copying, take a new mesh and restart the calibration: the old mesh was probed on a different grid.',
+  'probe.notice.popup.copy': 'Copy config',
+  'probe.notice.popup.copied': 'Copied',
+  'probe.notice.popup.ok': 'OK',
   'lattice.title': 'Lattice and 1:1 plan',
   'lattice.noMesh.title': 'No mesh yet',
   'lattice.noMesh.body': 'Parse a bed mesh on the Mesh tab first; the lattice needs its geometry.',
-  'lattice.field.wall': 'Wall between cells, mm',
+  'lattice.field.wall': 'Cell wall, mm',
+  'lattice.field.wall.hint':
+    'Printed wall between two cell holes. 0.8 mm is two 0.4 mm perimeters at a 0.4 mm nozzle.',
   'lattice.field.height': 'Lattice height, mm',
   'lattice.field.frame': 'Frame, mm',
   'lattice.field.rim': 'Cell rim, mm',
@@ -205,14 +225,14 @@ export const en: Record<string, string> = {
   'lattice.outline.grid': 'Tight',
   'lattice.outline.plate': 'Solid plate',
   'lattice.field.margin': 'Border, mm',
+  'lattice.field.margin.hint':
+    'Solid material outside the outermost cell holes for the tight outline. It does not move or resize the tape cells. Frame and solid-plate outlines ignore it; Auto uses it only when the grid is close to the plate edge and a tight sheet is chosen.',
   'lattice.field.hint':
     'Auto uses a frame + bridges when the measured grid is inset by more than 5 mm. Numbers are cut into the back and front rims, letters into the left and right rims; where the gap is too narrow the rim fuses to the frame instead of leaving a tiny bridge. With Extend to plate edges the sheet is the full plate, the outer cells stretch to a 6 mm border, and the labels are cut into that border.',
   'lattice.stats.triangles': 'Triangles',
   'lattice.stats.volume': 'Volume',
   'lattice.stats.weight': 'Estimated weight',
   'lattice.stats.box': 'Bounding box',
-  'lattice.manifold.ok': 'closed manifold',
-  'lattice.manifold.bad': 'not manifold',
   'lattice.download.stl': 'Download STL',
   'lattice.preview.lattice': 'Lattice preview (1:1, scaled to fit)',
   'lattice.note.lattice.title': 'How to use the lattice',
@@ -222,6 +242,33 @@ export const en: Record<string, string> = {
     'The default full-plate STL is a thin frame, a cut-out gap and four rounded bridges per side to the lattice. With Extend to plate edges the sheet keeps the full plate and cuts the labels into a 6 mm solid border; the outer cells stretch to it.',
   'lattice.warn.notClosed': 'The lattice is not closed ({edges} bad edges); adjust the wall thickness.',
   'lattice.warn.disconnected': 'The lattice has {parts} disconnected parts.',
+  'lattice.warn.compositeNoGridLine': 'No cell boundary near the middle along {axis}; the split runs through a cell.',
+  'lattice.warn.compositePlainSeam': 'The outer frame band is too thin for a dovetail between {a} and {b}; those parts meet with a plain seam.',
+  'lattice.warn.compositeEmptyPart': 'Part {part} became empty after splitting; adjust the outline or the lattice size.',
+  'lattice.warn.partNotClosed': 'Part {part} is not closed ({edges} bad edges); adjust the wall thickness.',
+  'lattice.warn.partDisconnected': 'Part {part} has {parts} disconnected pieces; the dovetail or a frame bridge was cut.',
+  'lattice.warn.crossNoCells': 'The centre did not land on four cells, so the separate centre cross was skipped.',
+  'lattice.warn.crossNoRoom': 'The centre cells are too small for a separate cross key.',
+  'lattice.warn.crossNotClosed': 'The centre cross is not closed ({edges} bad edges); adjust the wall thickness or the cross clearance.',
+  'lattice.warn.crossDisconnected': 'The centre cross has {parts} disconnected pieces.',
+  'lattice.composite.hint':
+    'If your bed is larger than the printer build area, split the sheet into four parts that print separately. The dovetails sit in the solid outer band at the four ends of the seams; a separate cross key fits into the centre cell holes, with a slot for the four cut walls.',
+  'lattice.field.composite': 'Composite lattice',
+  'lattice.field.clearance': 'Dovetail clearance, mm',
+  'lattice.field.clearance.hint':
+    'Offset on the outer tenon only; the mortise stays nominal. 0 means a tight fit. Raise it if your printer oversizes the tabs.',
+  'lattice.field.centerClearance': 'Centre cross clearance, mm',
+  'lattice.field.centerClearance.hint':
+    'Offset per side of the cross-shaped tunnel in the separate centre key. The wall sum is fixed; this only widens the tunnel.',
+  'lattice.composite.parts': 'Parts',
+  'lattice.composite.largest': 'Largest part',
+  'lattice.composite.download': 'Download part {index}',
+  'lattice.cross.title': 'Centre cross',
+  'lattice.cross.download': 'Download centre cross',
+  'lattice.cross.arm': 'Arm width {width} mm',
+  'lattice.composite.preview': 'Composite lattice preview (parts pulled apart, centre cross highlighted)',
+  'lattice.composite.note':
+    'Print the four parts and the centre cross separately. Press the outer dovetails together, then drop the cross into the four centre cells; its tunnel goes over the four cut walls. Raise the dovetail or cross clearance if the fit is tight.',
 
   'mesh.paste.title': 'New measurement',
   'mesh.paste.hint':
@@ -248,6 +295,20 @@ export const en: Record<string, string> = {
   'mesh.history.clearBody': 'Every stored map, its layer state and the pending plan will be removed. This cannot be undone.',
   'mesh.history.clearOk': 'Delete all',
   'mesh.history.clearCancel': 'Cancel',
+  'mesh.conflict.title': 'This mesh does not match the stored measurements',
+  'mesh.conflict.body':
+    'All measurements must share the same probe grid: bounds, point count and algorithm. This mesh differs, so it was not added.',
+  'mesh.conflict.field.grid':
+    '{label}: grid {storedX} × {storedY}, this mesh is {incomingX} × {incomingY}',
+  'mesh.conflict.field.bounds':
+    '{label}: X {storedMinX} … {storedMaxX}, Y {storedMinY} … {storedMaxY}; this mesh X {incomingMinX} … {incomingMaxX}, Y {incomingMinY} … {incomingMaxY}',
+  'mesh.conflict.field.algo': '{label}: algo {stored}, this mesh uses {incoming}',
+  'mesh.conflict.reason':
+    'Klipper re-probes on a new grid after probe_count, mesh_min/mesh_max or algo changes; maps from different grids cannot be compared node by node, so the plan and calibration would mix probes.',
+  'mesh.conflict.fresh':
+    'Delete the old measurements and add this mesh as the first one to start over, or cancel and keep the list unchanged.',
+  'mesh.conflict.cancel': 'Do not add',
+  'mesh.conflict.clear': 'Delete all and start with this mesh',
   'mesh.error.title': 'Cannot parse this mesh',
   'mesh.error.line': 'line {line}',
   'mesh.summary.title': 'Parsed mesh',
@@ -336,8 +397,18 @@ export const en: Record<string, string> = {
   'grid.warn.coarseCells': 'Too few cells for tape {tape} mm at {spacing} mm probe spacing — the shape is coarse.',
   'grid.warn.partialCells': '{count} cell(s) are clipped by the plate edge: the plate width {width} mm is not a multiple of the {tape} mm tape.',
   'plan.notice.unprobed': '{count} cell(s) lie outside the probed mesh and get no tape.',
-  'plan.notice.clamped': '{count} cell(s) hit the {max}-layer ceiling.',
+  'plan.notice.clamped': '{count} cell(s) hit the {max}-layer ceiling; the plan needs up to {needed}. Raise Max layers to at least {suggest} so the next pass keeps 2–3 layers in reserve.',
+  'plan.notice.clampedAuto': 'The plan needs more than the automatic {max}-layer safety cap. Check the mesh — a real bed should not need this many layers.',
+  'plan.notice.headroom': 'The plan uses up to {used} of the {max} allowed layers. Raise Max layers to at least {suggest} so the next pass keeps 2–3 layers in reserve.',
+  'plan.ceiling.title': 'Max layers is too tight',
+  'plan.ceiling.raise': 'Set Max layers to {count}',
+  'plan.ceiling.ok': 'This bed is fine',
   'plan.notice.inconsistent': '{count} cell(s) vary by more than half a layer inside themselves; one layer count is a compromise there.',
+  'plan.notice.referenceZone': 'A first-layer reference zone is kept at {zero} (no tape) with {first} neighbour(s) at 1 layer. The next mesh can re-measure the first layer, and the tape step is one layer.',
+  'plan.notice.referenceZonePeel': 'A first-layer reference zone is carved at {zero} (no tape) with {first} neighbour(s) at 1 layer, peeling {peel} layer(s). This keeps the first layer measurable; the tape step is one layer.',
+  'plan.notice.referenceCell': '{cell} is raised to 1 layer (+{add}) so the next mesh can re-measure the first layer; its neighbours differ by one layer.',
+  'plan.notice.noReferenceZone': 'The plan leaves every probed cell taped and no safe place is left for a first-layer reference zone, so the next mesh cannot re-measure the first layer. Keep one cell at 0–1 layers or peel one layer on a ~40×40 mm patch before probing.',
+  'plan.reference.legend': 'Magenta outline: first-layer reference zone — leave it as planned.',
   'probe.notice.overMeasuring': 'You are over-measuring: {ideal} probes are enough for {tape} mm tape.',
   'probe.notice.coarserThanTape': 'The cells are finer than your map: set probe_count: {probeCount} or accept that between nodes the plan is invention ({tape} mm tape).',
   'probe.warn.tooMany': '{grid} = {points} points, about {minutes} min: the gain is below the plate bridging. Still shown, never capped.',

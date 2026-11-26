@@ -6,6 +6,7 @@ import { useLang, useT, type Lang } from './i18n'
 import { useAppStore, type AppMode } from './state/store'
 import { MeshTab } from './ui/MeshTab'
 import { PlanTab } from './ui/PlanTab'
+import { ProbeGridNotice } from './ui/ProbeGridNotice'
 import { CalibrationCard } from './ui/CalibrationCard'
 import { LatticeTab } from './ui/LatticeTab'
 import { useAutoCalibration } from './ui/useAutoCalibration'
@@ -38,6 +39,7 @@ export function App() {
     >
       <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
         <div className="bedshim-shell">
+          <ProbeGridNotice />
           <Space orientation="vertical" size={16} style={{ width: '100%' }}>
             <Space align="start" wrap style={{ width: '100%', justifyContent: 'space-between' }}>
               <Space orientation="vertical" size={0}>
@@ -45,7 +47,7 @@ export function App() {
                   <Typography.Title level={3} style={{ margin: 0 }}>
                     {t('app.title')}
                   </Typography.Title>
-                  <Tag color="green">{t('app.offline')}</Tag>
+                  <Tag color="green">v{__APP_VERSION__}</Tag>
                 </Space>
                 <Typography.Text type="secondary">{t('app.subtitle')}</Typography.Text>
               </Space>

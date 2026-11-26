@@ -2,9 +2,18 @@ import { deadbandOf, furtherLayer, lift, type Material } from './material'
 import type { CoreMessage } from './messages'
 import type { Grid, Cell } from './grid'
 import type { Surface } from './mesh/interpolate'
+import {
+  firstLayerIdentifiable,
+  reserveFirstLayer,
+  type ReferenceInputCell,
+  type ReferenceZone,
+} from './reference'
 
 export type MeshSign = 'high' | 'low'
 export type Rounding = 'floor' | 'round'
+
+/** Keep this many layers free below maxLayers so the next pass can still add tape. */
+const LAYER_RESERVE = 3
 
 export interface PlanCell {
   id: string
@@ -29,6 +38,8 @@ export interface PlanCell {
   inconsistent: boolean
   /** The ideal layer count was cut by maxLayers. */
   clamped: boolean
+  /** Part of the first-layer reference zone (SPEC §9.2). */
+  reference: 'zero' | 'first' | 'ramp' | null
 }
 
 export interface PlanStats {
@@ -41,6 +52,8 @@ export interface PlanStats {
   extrapolated: number
   inconsistent: number
   clamped: number
+  /** The highest layer count the plan would use without the maxLayers ceiling. */
+  idealMax: number
 }
 
 export interface Plan {
@@ -59,6 +72,8 @@ export interface Plan {
   meshSign: MeshSign
   stats: PlanStats
   warnings: CoreMessage[]
+  /** The reserved t1 witness, or null when the plan already has first-layer contrast. */
+  referenceZone: ReferenceZone | null
 }
 
 export interface PlanOptions {
@@ -95,6 +110,11 @@ export interface PlanOptions {
    * top of this state instead of computing from zero.
    */
   baseLayers?: number[][]
+  /**
+   * Reserve a first-layer witness when the plan would otherwise tape every
+   * probed cell at least twice (SPEC §9.2). Default true.
+   */
+  calibrationZone?: boolean
 }
 
 /**
@@ -246,6 +266,7 @@ export function plan(options: PlanOptions): Plan {
     cellSamples = 16,
     smoothTarget = false,
     baseLayers,
+    calibrationZone = true,
   } = options
 
   const means: number[][] = Array.from({ length: grid.rows }, () => new Array<number>(grid.cols).fill(0))
@@ -284,6 +305,7 @@ export function plan(options: PlanOptions): Plan {
   let tapeLengthMM = 0
   let tapeAreaMM2 = 0
   let maxUsed = 0
+  let idealMax = 0
   let unprobed = 0
   let extrapolated = 0
   let inconsistent = 0
@@ -305,6 +327,9 @@ export function plan(options: PlanOptions): Plan {
       const idealWanted = quantize(absolute, material, { deadband: 0, maxLayers: 64, rounding })
       const extrapolatedCell = (cell.unprobed || cell.stretched) && grid.extendToPlate
       const layers = cell.unprobed && !extrapolatedCell ? 0 : wanted
+      const idealLayers =
+        cell.unprobed && !extrapolatedCell ? 0 : needed < deadband ? base : idealWanted
+      const cellClamped = idealLayers > layers
       const width = cell.x1 - cell.x0
       const cellHeight = cell.y1 - cell.y0
       totalLayers += layers
@@ -314,10 +339,11 @@ export function plan(options: PlanOptions): Plan {
         tapeAreaMM2 += layers * width * cellHeight
       }
       maxUsed = Math.max(maxUsed, layers)
+      idealMax = Math.max(idealMax, idealLayers)
       if (cell.unprobed) unprobed++
       if (extrapolatedCell) extrapolated++
       if (range > 0.5 * furtherLayer(material)) inconsistent++
-      if (idealWanted > maxLayers) clamped++
+      if (cellClamped) clamped++
       cells.push({
         id: cell.id,
         col,
@@ -334,16 +360,98 @@ export function plan(options: PlanOptions): Plan {
         extrapolated: extrapolatedCell,
         partial: cell.partial,
         inconsistent: range > 0.5 * furtherLayer(material),
-        clamped: idealWanted > maxLayers,
+        clamped: cellClamped,
+        reference: null,
       })
+    }
+  }
+
+  // A plan where every probed cell carries tape at least twice has no way to
+  // measure t1 on the next mesh. Reserve a small witness before reporting the
+  // plan (SPEC §9.2). The carve is deliberate undershoot, so it may peel.
+  const referenceCells: ReferenceInputCell[] = cells.map((cell) => ({
+    id: cell.id,
+    row: cell.row,
+    col: cell.col,
+    usable: !cell.unprobed && !cell.extrapolated && !cell.partial,
+    planned: cell.layers,
+    base: Math.max(0, baseLayers?.[cell.row]?.[cell.col] ?? 0),
+  }))
+  const maxPlanned = Math.max(0, ...referenceCells.filter((cell) => cell.usable).map((cell) => cell.planned))
+  const changing = referenceCells.some((cell) => cell.usable && cell.planned !== cell.base)
+  const referenceNeeded =
+    calibrationZone &&
+    maxPlanned > 0 &&
+    !firstLayerIdentifiable(referenceCells) &&
+    // A stable, already-calibrated bed needs no new bump: t1 is already known
+    // and there is no change to calibrate. An uncalibrated material always
+    // gets a witness, and so does any plan that is actually changing the bed.
+    (changing || !material.calibrated)
+  const reserved = referenceNeeded ? reserveFirstLayer(referenceCells, grid.cols) : null
+  let referenceZone: ReferenceZone | null = null
+  if (reserved) {
+    referenceZone = reserved.zone
+    const byIndex = new Map(cells.map((cell) => [cell.row * grid.cols + cell.col, cell]))
+    for (const target of reserved.targets) {
+      const cell = byIndex.get(target.row * grid.cols + target.col)
+      if (!cell) continue
+      cell.layers = target.layers
+      cell.reference = target.role
+    }
+    // The carve changes the layer sum: report the physical plan, not the ideal.
+    totalLayers = 0
+    cellsWithTape = 0
+    tapeLengthMM = 0
+    tapeAreaMM2 = 0
+    maxUsed = 0
+    for (const cell of cells) {
+      const width = cell.x1 - cell.x0
+      const cellHeight = cell.y1 - cell.y0
+      totalLayers += cell.layers
+      if (cell.layers > 0) {
+        cellsWithTape++
+        tapeLengthMM += cell.layers * width
+        tapeAreaMM2 += cell.layers * width * cellHeight
+      }
+      maxUsed = Math.max(maxUsed, cell.layers)
     }
   }
 
   const warnings: CoreMessage[] = []
   if (unprobed > 0 && !grid.extendToPlate) warnings.push({ code: 'plan.notice.unprobed', params: { count: unprobed } })
   if (extrapolated > 0) warnings.push({ code: 'plan.notice.extrapolated', params: { count: extrapolated } })
-  if (clamped > 0) warnings.push({ code: 'plan.notice.clamped', params: { count: clamped, max: maxLayers } })
+  if (clamped > 0) {
+    warnings.push({
+      code: 'plan.notice.clamped',
+      params: { count: clamped, max: maxLayers, needed: idealMax, suggest: idealMax + LAYER_RESERVE },
+    })
+  } else if (idealMax > 0 && maxLayers - idealMax < LAYER_RESERVE) {
+    // The plan fits, but with little or no room left for the next pass.
+    warnings.push({
+      code: 'plan.notice.headroom',
+      params: { used: idealMax, max: maxLayers, suggest: idealMax + LAYER_RESERVE },
+    })
+  }
   if (inconsistent > 0) warnings.push({ code: 'plan.notice.inconsistent', params: { count: inconsistent } })
+  if (referenceZone) {
+    if (referenceZone.zero) {
+      warnings.push({
+        code: referenceZone.peel > 0 ? 'plan.notice.referenceZonePeel' : 'plan.notice.referenceZone',
+        params: {
+          zero: referenceZone.zero,
+          first: referenceZone.first.length,
+          peel: referenceZone.peel,
+        },
+      })
+    } else {
+      warnings.push({
+        code: 'plan.notice.referenceCell',
+        params: { cell: referenceZone.first[0] ?? '—', add: referenceZone.add },
+      })
+    }
+  } else if (referenceNeeded) {
+    warnings.push({ code: 'plan.notice.noReferenceZone' })
+  }
 
   return {
     cells,
@@ -371,8 +479,10 @@ export function plan(options: PlanOptions): Plan {
       extrapolated,
       inconsistent,
       clamped,
+      idealMax,
     },
     warnings,
+    referenceZone,
   }
 }
 

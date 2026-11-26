@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Alert, Button, Card, Descriptions, Dropdown, Input, Popconfirm, Space, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Descriptions, Dropdown, Input, Modal, Popconfirm, Space, Tag, Typography } from 'antd'
 import { CoreError } from '../core/errors'
+import { meshMismatches, type MeshDifference } from '../core/mesh/compat'
 import { createSurface } from '../core/mesh/interpolate'
 import { parseMesh } from '../core/mesh/parse'
 import { surfaceStats } from '../core/mesh/stats'
+import type { ParseResult } from '../core/mesh/types'
 import type { MessageParams } from '../core/messages'
 import { useT } from '../i18n'
 import { useAppStore } from '../state/store'
@@ -16,6 +18,17 @@ interface Failure {
   code: string
   params?: MessageParams
   line?: number
+}
+
+/**
+ * A parsed mesh that cannot join the stored measurements because its probe
+ * grid, bounds or algorithm differ. Kept aside until the user either accepts a
+ * fresh start or cancels; it is never written to the store as-is.
+ */
+interface Conflict {
+  result: ParseResult
+  source: string
+  differences: MeshDifference[]
 }
 
 const format = (value: number): string => value.toFixed(4)
@@ -31,6 +44,7 @@ export function MeshTab() {
   const removeMeasurement = useAppStore((state) => state.removeMeasurement)
   const clearMeasurements = useAppStore((state) => state.clearMeasurements)
   const [failure, setFailure] = useState<Failure | null>(null)
+  const [conflict, setConflict] = useState<Conflict | null>(null)
 
   const selected = measurements.find((item) => item.id === selectedId) ?? null
   const parsed = selected?.mesh ?? null
@@ -52,6 +66,14 @@ export function MeshTab() {
   const runParse = (source: string) => {
     try {
       const result = parseMesh(source)
+      // Every stored map must share the probe geometry; a map from another
+      // probe_count cannot join the list (see the conflict dialog below).
+      const differences = meshMismatches(result.mesh, measurements)
+      if (differences.length > 0) {
+        setConflict({ result, source, differences })
+        setFailure(null)
+        return
+      }
       addMeasurement(result.mesh, source, result.profiles)
       setFailure(null)
     } catch (error) {
@@ -60,6 +82,45 @@ export function MeshTab() {
         return
       }
       throw error
+    }
+  }
+
+  /** The user chose a clean start: the old list is dropped and this mesh is M1. */
+  const startFresh = () => {
+    if (!conflict) return
+    clearMeasurements()
+    addMeasurement(conflict.result.mesh, conflict.source, conflict.result.profiles)
+    setConflict(null)
+  }
+
+  const describeDifference = (difference: MeshDifference): string => {
+    switch (difference.field) {
+      case 'grid':
+        return t('mesh.conflict.field.grid', {
+          label: difference.label,
+          storedX: difference.stored.x,
+          storedY: difference.stored.y,
+          incomingX: difference.incoming.x,
+          incomingY: difference.incoming.y,
+        })
+      case 'bounds':
+        return t('mesh.conflict.field.bounds', {
+          label: difference.label,
+          storedMinX: format(difference.stored.minX),
+          storedMaxX: format(difference.stored.maxX),
+          storedMinY: format(difference.stored.minY),
+          storedMaxY: format(difference.stored.maxY),
+          incomingMinX: format(difference.incoming.minX),
+          incomingMaxX: format(difference.incoming.maxX),
+          incomingMinY: format(difference.incoming.minY),
+          incomingMaxY: format(difference.incoming.maxY),
+        })
+      case 'algo':
+        return t('mesh.conflict.field.algo', {
+          label: difference.label,
+          stored: difference.stored,
+          incoming: difference.incoming,
+        })
     }
   }
 
@@ -305,6 +366,39 @@ export function MeshTab() {
           )}
         </Space>
       </Card>
+
+      <Modal
+        open={conflict !== null}
+        title={t('mesh.conflict.title')}
+        onCancel={() => setConflict(null)}
+        // Above the Auto probe-grid notification, which otherwise covers this dialog.
+        zIndex={2100}
+        footer={
+          <Space wrap>
+            <Button onClick={() => setConflict(null)}>{t('mesh.conflict.cancel')}</Button>
+            <Button type="primary" danger onClick={startFresh}>
+              {t('mesh.conflict.clear')}
+            </Button>
+          </Space>
+        }
+      >
+        {conflict && (
+          <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+            <Typography.Text>{t('mesh.conflict.body')}</Typography.Text>
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {conflict.differences.map((difference) => (
+                <li key={difference.field}>{describeDifference(difference)}</li>
+              ))}
+            </ul>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {t('mesh.conflict.reason')}
+            </Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {t('mesh.conflict.fresh')}
+            </Typography.Text>
+          </Space>
+        )}
+      </Modal>
     </Space>
   )
 }

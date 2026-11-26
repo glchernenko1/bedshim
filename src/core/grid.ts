@@ -29,7 +29,10 @@ export interface Grid {
   cols: number
   rows: number
   tapeWidth: number
-  /** Y step = mesh row spacing, so rows land on probe rows (SPEC §3). */
+  /**
+   * Y step actually used: the mesh row spacing, capped at one tape width so a
+   * coarse mesh cannot produce cells taller than a strip (SPEC §3).
+   */
   rowSpacing: number
   meshBounds: MeshBounds
   plate: { w: number; h: number }
@@ -72,6 +75,21 @@ export function rowLabel(index: number): string {
 }
 
 /**
+ * A plate must contain the probed rectangle: a mesh cannot be taken outside the
+ * physical plate. Returns a plate that is at least as large as the mesh, so the
+ * plan never clips the measured area.
+ */
+export function fitPlateToMesh(
+  plate: { w: number; h: number },
+  bounds: MeshBounds,
+): { w: number; h: number } {
+  return {
+    w: Math.max(plate.w, Math.ceil(bounds.maxX)),
+    h: Math.max(plate.h, Math.ceil(bounds.maxY)),
+  }
+}
+
+/**
  * Cells come from the tape, not from the mesh: X step is the tape width, Y step
  * is the mesh row spacing. This is the single source of truth for the planner,
  * the STL and the SVG (SPEC §3).
@@ -83,7 +101,12 @@ export function buildGrid(options: GridOptions): Grid {
   const spanY = meshBounds.maxY - meshBounds.minY
   if (!(spanX > 0) || !(spanY > 0)) throw new RangeError('meshBounds must be non-empty')
 
-  const rowSpacing = meshYCount > 1 ? spanY / (meshYCount - 1) : spanY
+  const meshRowSpacing = meshYCount > 1 ? spanY / (meshYCount - 1) : spanY
+  // A cell must be coverable by one strip across its short side. Probe rows
+  // coarser than the roll (e.g. 8 probes over 215 mm = 30.7 mm) fall back to
+  // tape-width rows so the cut list stays 20 mm strips instead of splitting
+  // every row into two fractional ones; the surface is interpolated either way.
+  const rowSpacing = Math.min(meshRowSpacing, tapeWidth)
   const baseCols = Math.max(1, Math.ceil(spanX / tapeWidth - 1e-9))
   const baseRows = Math.max(1, Math.ceil(spanY / rowSpacing - 1e-9))
 

@@ -19,6 +19,12 @@ export interface FitOptions {
    * layers (every cell already had tape), where t1 is not identifiable.
    */
   fixedT1?: number
+  /**
+   * Known further-layer lift. Used when no cell changed to a second layer, so
+   * ts is not identifiable; the previous measured value is kept instead of
+   * being overwritten with t1.
+   */
+  fixedTs?: number
 }
 
 export interface FitResult {
@@ -31,8 +37,10 @@ export interface FitResult {
   cells: number
   /** How many cells changed by each number of layers. */
   counts: Array<{ delta: number; cells: number }>
-  /** True when no cell had a 2+ layer change, so ts fell back to t1. */
+  /** True when no cell had a 2+ layer change, so only one parameter is new. */
   singleParameter: boolean
+  /** Where `ts` came from: the pair, the previous calibration, or the t1 fallback. */
+  tsSource: 'fit' | 'previous' | 'fallback'
   /** True when only ts was measurable and t1 was taken as given. */
   tsOnly: boolean
   /** t1 is clearly above the noise. */
@@ -61,6 +69,7 @@ export function fitMaterial(options: FitOptions): FitResult {
     sigma = 22,
     cellSamples: _cellSamples = 16,
     fixedT1,
+    fixedTs,
   } = options
 
   // Compare at the probe nodes: the measured delta there is a direct sample of
@@ -164,6 +173,7 @@ export function fitMaterial(options: FitOptions): FitResult {
       cells: grid.cells.length,
       counts,
       singleParameter: false,
+      tsSource: 'fallback',
       tsOnly: false,
       conclusive: false,
       warnings,
@@ -175,6 +185,7 @@ export function fitMaterial(options: FitOptions): FitResult {
   let ts: number
   let singleParameter = false
   let tsOnly = false
+  let tsSource: FitResult['tsSource'] = 'fit'
   if (s11 < 1e-12) {
     // Every cell already had tape: only the further-layer lift is observable.
     tsOnly = true
@@ -188,9 +199,21 @@ export function fitMaterial(options: FitOptions): FitResult {
   } else if (Math.abs(determinant) < 1e-12 || s22 < 1e-12) {
     // No cell changed by a second layer: only the first-layer lift is observable.
     t1 = y1 / s11
-    ts = t1
     singleParameter = true
-    warnings.push({ code: 'calibrate.notice.singleParameter' })
+    if (fixedTs !== undefined && fixedTs > 0) {
+      // Keep the previous measurement instead of overwriting ts with t1: a
+      // plan with no second layer says nothing new about the further layer.
+      ts = fixedTs
+      tsSource = 'previous'
+      warnings.push({
+        code: 'calibrate.notice.tsKept',
+        params: { t1: t1.toFixed(4), ts: ts.toFixed(4) },
+      })
+    } else {
+      ts = t1
+      tsSource = 'fallback'
+      warnings.push({ code: 'calibrate.notice.singleParameter' })
+    }
   } else {
     t1 = (y1 * s22 - y2 * s12) / determinant
     ts = (y2 * s11 - y1 * s12) / determinant
@@ -216,9 +239,17 @@ export function fitMaterial(options: FitOptions): FitResult {
       params: { r2: r2.toFixed(2), noise: noise.toFixed(4) },
     })
   }
-  const conclusive = t1 > 0 && ts > 0 && t1 > 2 * noise && r2 > 0.5
+  const conclusive =
+    t1 > 0 &&
+    ts > 0 &&
+    r2 > 0.5 &&
+    (tsOnly || t1 > 2 * noise) &&
+    (tsSource !== 'fit' || ts > 2 * noise)
   if (!conclusive) {
-    warnings.push({ code: 'calibrate.warn.inconclusive', params: { t1: t1.toFixed(4), noise: noise.toFixed(4) } })
+    warnings.push({
+      code: 'calibrate.warn.inconclusive',
+      params: { t1: t1.toFixed(4), ts: ts.toFixed(4), noise: noise.toFixed(4) },
+    })
   }
 
   return {
@@ -229,6 +260,7 @@ export function fitMaterial(options: FitOptions): FitResult {
     cells: grid.cells.length,
     counts,
     singleParameter,
+    tsSource,
     tsOnly,
     conclusive,
     warnings,

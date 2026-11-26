@@ -37,6 +37,53 @@ export function probeEstimate(
   }
 }
 
+export type ProbeVerdict = 'coarse' | 'good' | 'fine' | 'slow'
+
+/**
+ * Verdict for a candidate tape width, relative to the tape in use (one probe
+ * per cell). An absolute point cutoff called the 250 mm bed's own 12×12 ideal
+ * "fine" (мелко) while the 235 mm fixture's 11×11 counted as "good"; the two
+ * are the same density, so the comparison has to be relative.
+ */
+export function probeVerdict(points: number, currentPoints: number): ProbeVerdict {
+  const ratio = currentPoints > 0 ? points / currentPoints : 1
+  if (ratio <= 0.5) return 'coarse'
+  if (ratio <= 1.5) return 'good'
+  if (ratio <= 3) return 'fine'
+  return 'slow'
+}
+
+export interface ProbeMismatch {
+  idealX: number
+  idealY: number
+  points: number
+  currentX: number
+  currentY: number
+}
+
+/**
+ * Compares the probe grid a mesh was taken with to the grid the tape needs.
+ * Null when both axes are within one probe of the ideal, so ordinary rounding
+ * (round vs ceil) does not nag the user.
+ */
+export function probeMismatch(
+  bounds: MeshBounds,
+  tapeWidth: number,
+  xCount: number,
+  yCount: number,
+  tolerance = 1,
+): ProbeMismatch | null {
+  const ideal = idealProbeCount(bounds, tapeWidth)
+  if (Math.abs(xCount - ideal.x) <= tolerance && Math.abs(yCount - ideal.y) <= tolerance) return null
+  return {
+    idealX: ideal.x,
+    idealY: ideal.y,
+    points: ideal.x * ideal.y,
+    currentX: xCount,
+    currentY: yCount,
+  }
+}
+
 export interface ProbeAdviceOptions {
   bounds: MeshBounds
   tapeWidth: number
@@ -92,7 +139,9 @@ export function bedMeshSnippet(
   probeY: number,
   algorithm = 'bicubic',
 ): string {
-  const fmt = (value: number): string => (Number.isInteger(value) ? String(value) : value.toFixed(1))
+  // Keep fractional mesh bounds exact (229.97 is not 230.0): the snippet is
+  // copied into printer.cfg, so it must not shift the probed rectangle.
+  const fmt = (value: number): string => String(Number(value.toFixed(2)))
   return [
     '[bed_mesh]',
     `mesh_min: ${fmt(bounds.minX)}, ${fmt(bounds.minY)}`,

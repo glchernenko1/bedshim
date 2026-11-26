@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from 'react'
 import { Button, Slider, Space, Typography } from 'antd'
 import type { Surface } from '../core/mesh/interpolate'
 import { useT } from '../i18n'
@@ -37,6 +37,32 @@ interface Projected {
   depth: number
 }
 
+interface Hover {
+  x: number
+  y: number
+  z: number
+  left: number
+  top: number
+}
+
+/** Barycentric weights of (px, py) in the screen triangle abc; null when outside. */
+function barycentric(
+  px: number,
+  py: number,
+  a: readonly [number, number],
+  b: readonly [number, number],
+  c: readonly [number, number],
+): [number, number, number] | null {
+  const determinant = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+  if (Math.abs(determinant) < 1e-9) return null
+  const wa = ((b[1] - c[1]) * (px - c[0]) + (c[0] - b[0]) * (py - c[1])) / determinant
+  const wb = ((c[1] - a[1]) * (px - c[0]) + (a[0] - c[0]) * (py - c[1])) / determinant
+  const wc = 1 - wa - wb
+  const epsilon = -1e-6
+  if (wa < epsilon || wb < epsilon || wc < epsilon) return null
+  return [wa, wb, wc]
+}
+
 /**
  * Rotatable height field drawn on a 2D canvas — no WebGL, no new dependency
  * (SPEC §11 keeps the dependency list closed). Drag rotates, the slider
@@ -47,10 +73,12 @@ export function MeshSurface3D({ surface, maxAbs }: { surface: Surface; maxAbs: n
   const hostRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const dragRef = useRef<{ x: number; y: number } | null>(null)
+  const pickRef = useRef<((px: number, py: number) => Hover | null) | null>(null)
   const [width, setWidth] = useState(0)
   const [yaw, setYaw] = useState(DEFAULT_YAW)
   const [elevation, setElevation] = useState(DEFAULT_ELEVATION)
   const [zScale, setZScale] = useState(DEFAULT_Z_SCALE)
+  const [hover, setHover] = useState<Hover | null>(null)
 
   const height = width > 0 ? Math.max(260, Math.min(480, Math.round(width * 0.72))) : 0
   const bounds = surface.bounds
@@ -107,7 +135,12 @@ export function MeshSurface3D({ surface, maxAbs }: { surface: Surface; maxAbs: n
     const zAmp = maxAbs === 0 ? 1 : maxAbs
     const baseHeight = -1.25
 
-    /** Rotates a grid point into camera space; `z` is normalised surface height. */
+    /**
+     * Rotates a grid point into camera space; `z` is normalised surface height.
+     * The camera sits above the bed looking down at its front edge, so +y goes
+     * into the screen, +z (a high spot, per SPEC §2) goes up, and a larger
+     * depth is nearer to the viewer (it is drawn last).
+     */
     const rotate = (col: number, row: number, z: number): Projected => {
       const wx = ((col / GRID) * 2 - 1) * (spanX / maxSpan)
       const wy = ((row / GRID) * 2 - 1) * (spanY / maxSpan)
@@ -116,8 +149,8 @@ export function MeshSurface3D({ surface, maxAbs }: { surface: Surface; maxAbs: n
       const y1 = wx * sinYaw + wy * cosYaw
       return {
         x: x1,
-        y: y1 * cosTilt - hz * sinTilt,
-        depth: y1 * sinTilt + hz * cosTilt,
+        y: y1 * cosTilt + hz * sinTilt,
+        depth: -y1 * sinTilt + hz * cosTilt,
       }
     }
 
@@ -159,6 +192,53 @@ export function MeshSurface3D({ surface, maxAbs }: { surface: Surface; maxAbs: n
       PADDING + plotW / 2 + (point.x - centerX) * scale,
       PADDING + plotH / 2 - (point.y - centerY) * scale,
     ]
+
+    const screenPoints = points.map((line) => line.map((point) => screen(point)))
+
+    // Hit-test the surface that was just projected: a screen point can cross
+    // several quads, so keep the nearest one (largest depth) and read the
+    // surface height at its bed coordinates.
+    pickRef.current = (px, py) => {
+      let best: Hover | null = null
+      let bestDepth = Number.NEGATIVE_INFINITY
+      const consider = (
+        weights: [number, number, number],
+        projected: [Projected, Projected, Projected],
+        gridX: number,
+        gridY: number,
+      ): void => {
+        const depth =
+          weights[0] * projected[0].depth + weights[1] * projected[1].depth + weights[2] * projected[2].depth
+        if (depth <= bestDepth) return
+        bestDepth = depth
+        const x = bounds.minX + (gridX / GRID) * spanX
+        const y = bounds.minY + (gridY / GRID) * spanY
+        best = { x, y, z: surface.at(x, y), left: px, top: py }
+      }
+      for (let row = 0; row < GRID; row++) {
+        for (let col = 0; col < GRID; col++) {
+          const s00 = screenPoints[row]![col]!
+          const s10 = screenPoints[row]![col + 1]!
+          const s11 = screenPoints[row + 1]![col + 1]!
+          const s01 = screenPoints[row + 1]![col]!
+          const p00 = points[row]![col]!
+          const p10 = points[row]![col + 1]!
+          const p11 = points[row + 1]![col + 1]!
+          const p01 = points[row + 1]![col]!
+          const first = barycentric(px, py, s00, s10, s11)
+          if (first) {
+            const [, wb, wc] = first
+            consider(first, [p00, p10, p11], col + wb + wc, row + wc)
+          }
+          const second = barycentric(px, py, s00, s11, s01)
+          if (second) {
+            const [, wb, wc] = second
+            consider(second, [p00, p11, p01], col + wb, row + wb + wc)
+          }
+        }
+      }
+      return best
+    }
 
     // Ground plane and its vertical edges.
     context.strokeStyle = 'rgba(0, 0, 0, 0.18)'
@@ -254,8 +334,17 @@ export function MeshSurface3D({ surface, maxAbs }: { surface: Surface; maxAbs: n
   }, [field, width, height, yaw, elevation, zScale, maxAbs, spanX, spanY])
 
   const onPointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
+    setHover(null)
     dragRef.current = { x: event.clientX, y: event.clientY }
     event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  const onHover = (event: MouseEvent<HTMLCanvasElement>) => {
+    if (dragRef.current) return
+    const pick = pickRef.current
+    if (!pick) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    setHover(pick(event.clientX - rect.left, event.clientY - rect.top))
   }
 
   const onPointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
@@ -277,7 +366,7 @@ export function MeshSurface3D({ surface, maxAbs }: { surface: Surface; maxAbs: n
 
   return (
     <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-      <div ref={hostRef} style={{ width: '100%' }}>
+      <div ref={hostRef} style={{ position: 'relative', width: '100%' }}>
         <canvas
           ref={canvasRef}
           role="img"
@@ -295,7 +384,32 @@ export function MeshSurface3D({ surface, maxAbs }: { surface: Surface; maxAbs: n
           onPointerMove={onPointerMove}
           onPointerUp={stopDrag}
           onPointerCancel={stopDrag}
+          onMouseMove={onHover}
+          onMouseLeave={() => setHover(null)}
         />
+        {hover && (
+          <div
+            style={{
+              position: 'absolute',
+              left: hover.left,
+              top: hover.top,
+              transform: 'translate(-50%, -130%)',
+              background: 'rgba(0, 0, 0, 0.82)',
+              color: '#fff',
+              padding: '4px 8px',
+              borderRadius: 6,
+              fontSize: 12,
+              pointerEvents: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {t('heatmap.hover', {
+              x: hover.x.toFixed(1),
+              y: hover.y.toFixed(1),
+              z: hover.z.toFixed(3),
+            })}
+          </div>
+        )}
       </div>
       <Space orientation="vertical" size={0} style={{ width: '100%' }}>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>

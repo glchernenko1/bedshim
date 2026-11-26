@@ -174,8 +174,30 @@ describe('fitMaterial', () => {
       sigma: 22,
     })
     expect(fit.singleParameter).toBe(true)
+    expect(fit.tsSource).toBe('fallback')
     expect(fit.ts).toBe(fit.t1)
     expect(fit.t1).toBeCloseTo(trueMaterial.t1, 2)
+  })
+
+  it('keeps a previously measured ts when no second layer changed', () => {
+    const ones = layerPattern().map((row) => row.map((value) => (value > 0 ? 1 : 0)))
+    const zero = Array.from({ length: 10 }, () => new Array<number>(10).fill(0))
+    const oldSurface = createSurface(flatMesh(0))
+    const newSurface = createSurface(meshFromField(ones, 22))
+    const fit = fitMaterial({
+      oldSurface,
+      newSurface,
+      oldLayers: zero,
+      newLayers: ones,
+      grid: grid(),
+      sigma: 22,
+      fixedTs: TRUE_TS,
+    })
+    expect(fit.singleParameter).toBe(true)
+    expect(fit.tsSource).toBe('previous')
+    expect(fit.ts).toBe(TRUE_TS)
+    expect(fit.t1).toBeCloseTo(trueMaterial.t1, 2)
+    expect(fit.warnings.map((warning) => warning.code)).toContain('calibrate.notice.tsKept')
   })
 })
 

@@ -58,7 +58,11 @@ Tape adds height; it can never subtract. Therefore:
 - Layers are physical, not monotonic plans: a later iteration may peel tape
   that is really there (a previous overshoot), but the count never goes below
   zero. The plan is compared with the physical layer matrix and the difference
-  is shown as `+n` add / `−n` peel before anything is applied.
+  is shown as `+n` add / `−n` peel before anything is applied. The one deliberate
+  exception is the first-layer reference zone (§9.2): when the plan leaves no
+  first-layer contrast (every probed cell already carries tape) and t1 is not
+  identifiable from the pair, a small 0/1 valley may be peeled so the next mesh
+  can measure it.
 
 ### 1.2 Bridging (the plate does not follow small patches)
 
@@ -173,10 +177,18 @@ type Cell = {
 
 Rules:
 
-- **X step = `tapeWidth`.** Y step = mesh row spacing (`(maxY-minY)/(yCount-1)`),
-  so rows land on probe rows and no extrapolation is introduced. The 20 mm strip
+- **X step = `tapeWidth`.** Y step = mesh row spacing
+  (`(maxY-minY)/(yCount-1)`), so rows land on probe rows. When that spacing is
+  wider than the roll (a coarse 8×8 mesh at ~31 mm), rows fall back to
+  `tapeWidth`: every cell must still be one strip wide, otherwise each row is
+  split into fractional strips (15.355 mm instead of 20 mm). The 20 mm strip
   overhanging a 19 mm row by 1 mm is desirable (no gaps).
 - Grid origin = `(meshBounds.minX, meshBounds.minY)`.
+- The plate must contain the probed rectangle: `plate.w >= meshBounds.maxX` and
+  `plate.h >= meshBounds.maxY`. The UI cannot go below it, and selecting a mesh
+  that reaches farther raises the plate; a mesh cannot be probed outside the
+  physical plate.
+- Tape width is limited to 5–50 mm in the UI: a cut strip, not a sheet.
 - Columns numbered `1..N` left→right, rows lettered `A, B, C…` front→back.
 - Cell ids are stable; nothing is mirrored anywhere in the app.
 - `buildGrid` is the **single source of truth** for the planner, the STL and the
@@ -297,7 +309,15 @@ Parsing rules:
   ignored and listed in the parse report;
 - validate `rows == y_count`, `cols == x_count`; on mismatch report both counts
   and the offending row — never pad;
-- if counts are absent → infer and say so.
+- if counts are absent → infer and say so;
+- every new mesh must match the stored measurements on `x_count`/`y_count`, the
+  `min_x`/`max_x`/`min_y`/`max_y` bounds (within 1e-6 mm) and `algo`. Klipper
+  re-probes on a new grid after any of those change, and maps from different
+  grids cannot be aligned node by node, so calibration and plan differences
+  across them would mix probes. A mismatching mesh is **not added**: the app
+  lists the differing fields against the stored measurement and offers either
+  to delete every stored measurement and add this mesh as the new M1, or to
+  cancel and leave the list unchanged (`meshMismatches`, SPEC §9.2).
 
 ### 5.2 Interpolation
 
@@ -401,12 +421,15 @@ plan(opts: {
   maxLayers?: number;               // default 6
   cellSamples?: number;             // default 16 (≥ 8 per §5.3)
   baseLayers?: number[][];          // absolute layers already on the bed
+  calibrationZone?: boolean;        // default true; reserve the t1 witness (§9.2)
   meshSign?: 'high' | 'low';        // internal; the app always uses 'high'
 }): Plan;
 
 `baseLayers` is the physical state when the mesh was taken. The mesh already
 contains that lift, so the plan adds the remaining correction on top of it
-instead of computing from zero; a plan is never below the existing stack.
+instead of computing from zero; outside the reference zone a plan is never below
+the existing stack. `Plan.referenceZone` reports the reserved witness, and
+`PlanCell.reference` marks its cells (`zero`, `first`, `ramp`).
 ```
 
 ### 6.2 Reference level
@@ -473,6 +496,17 @@ Report:
   plan; coarsen it". When the plate delivers the plan but `achievable` is low,
   the plan is undershooting on purpose (`floor`), and the report says so instead
   of blaming the plate.
+
+**Gating.** The prediction is only shown when calibration has measured the tape
+and the plate: a pair where at least one cell changed its first layer and `ts`
+is measured — by this pair or a previous calibration whose value the pair could
+not improve — and the σ noise curve is identifiable. Before that the Card
+explains that the forecast appears after a plan with two layers in at least one
+cell and a fresh mesh, both in Pro and Auto; until then σ would be the fallback
+default. The gate is the stored `bridgingMeasured` flag, set by
+`calibrationMeasuresTape` when Pro applies a fit or Auto applies a ready pair.
+A plan with no first-layer contrast is guarded by the reference zone above, so
+the loop cannot quietly lose `t1`.
 
 The forward model is the **only** way to test the planner without printing.
 Synthetic deformations (plane, bowl, saddle, edge droop, single bump) must be
@@ -570,6 +604,39 @@ Least squares over all cells, solving for `t1` and `ts` (fall back to a single
 scalar when there is no cell with `n >= 2`). Report `R²`, the number of cells per
 `n`, and `noise = std(residual within equal-n groups)`.
 
+**Identifiability.** Because the pair is detrended, a uniform first layer is
+indistinguishable from a Z re-tune. `t1` is measurable only when some cells
+change their *has-at-least-one-layer* state and others do not. A plan that
+leaves every probed cell taped has no such contrast, so the next pair can never
+re-measure `t1`. `plan()` therefore reserves a first-layer witness
+(`core/reference.ts`, `calibrationZone`, default on):
+
+- if a probed cell is already at 0 layers, it is raised to exactly 1 (a cheap
+  0 → 1 transition; no peeling);
+- otherwise one cell is set to 0, its four neighbours to 1, and a ramp is
+  lowered outward until the natural plan is reached. Every edge at the witness
+  stays within one layer, and the witness never uses unprobed, extrapolated or
+  plate-clipped cells (SPEC §1.5);
+- a witness is added when the plan changes the bed or when `t1` is still
+  unknown, so a fully taped plan can never make `t1` unmeasurable. A stable,
+  already-calibrated bed is left alone even if it is fully taped: the known
+  `t1` is carried by `fixedT1`, and there is no change to calibrate. If no safe
+  witness fits within 25 cells, the plan warns instead of cutting a deep hole.
+
+`PlanCell.reference` marks `zero`/`first`/`ramp` cells; the plan view outlines
+them in magenta and the diff reports the peel. The user must leave the zone as
+planned between the two meshes.
+
+**Carry-over.** If no cell gained (or lost) a second layer, `ts` is not
+identifiable; `fitMaterial` keeps the previously measured `ts` (`fixedTs`,
+`FitResult.tsSource = 'previous'`) instead of silently overwriting it with
+`t1`. Likewise, `fixedT1` carries the known first layer when the plan only
+changed further layers (`tsSource = 'fit'`). `tsSource = 'fallback'` means the
+fit had neither a second-layer change nor a previous `ts`; the forecast stays
+locked. `noise` is reported and every parameter the pair actually fits must be
+above `2 × noise`, with `R² > 0.5`, before the fit is applied, so a single noisy
+cell cannot pass.
+
 ### 9.3 Material wizard (also answers "I don't know my tape thickness")
 
 Unknown tape is the normal case; never require the user to know it.
@@ -615,8 +682,17 @@ the other settings and starts in **Auto**.
 - **Auto** is the owner's opt-in to apply the loop without a click. It removes
   the Calibration tab and the measured/t1/ts/rounding/σ/probe controls, and
   keeps the plan inputs: tape width, tape nominal, plate size, Extend to plate
-  edges, max layers and the reference percentile, plus the plan, cut list and
-  prediction. `t1`/`ts` are not named anywhere in the Auto UI.
+  edges, max layers and the reference percentile, plus the plan, cut list,
+  prediction and the read-only probe-count advice. `t1`/`ts` values are not
+  named anywhere in the Auto UI; the plan view may mark the first-layer
+  reference zone, because the user has to leave it in place.
+- Auto raises a dismissible top notification when the mesh was probed on a grid
+  that differs from one probe per tape cell by more than one point on an axis.
+  It shows the ideal `probe_count` in a copy-paste `[bed_mesh]` block and says
+  that the copied config needs a new mesh and a fresh calibration. It stays
+  dismissed for the same tape width, and re-arms when the tape width changes or
+  every measurement is deleted. The tape field is debounced so the hint does not
+  flash while the value is being typed.
 - Both modes take the **same pair** (the last two measurements, the Pro default)
   and call the same `fitCalibrationPair` / `calibrationValues` helpers. Auto
   applies `t1`, `ts`, σ and `round` only when the fit is conclusive; an
@@ -667,7 +743,40 @@ outlined strips per level with a legend, and a `FRONT` caption. Printable at 100
 tiled sheets. Used as an under-plate template — mention that paper adds a uniform
 ~0.1 mm (absorbed by Z offset, but say it).
 
-### 10.3 Project JSON
+### 10.3 Composite lattice
+
+When the plate is larger than the printer build area, the lattice can be split
+into four printable quadrants plus a separate centre key
+(`buildCompositeLattice`):
+
+- The split runs along the cell boundary nearest the middle of the sheet, so no
+  cell is bisected. If the grid has no usable boundary, the geometric middle is
+  used and a warning is reported.
+- The four quadrants keep straight seams; the dovetails sit in the **solid outer
+  band** at the four ends of those seams. Every part carries exactly one tenon
+  and one mortise (a pinwheel), so the outer ends lock together. The band is the
+  outer frame width in the framed design, the 6 mm label border when the grid is
+  extended, and the tight margin otherwise. If the band is too thin for a
+  dovetail, that seam falls back to a plain butt joint with a warning.
+- The mortise uses the nominal dovetail. `clearance` is a perpendicular offset
+  applied only to the tenon's flared sides and tip, so the pocket stays
+  nominal. Default 0; the UI exposes 0–0.5 mm.
+- A separate **centre cross** fills the four cell holes around the crossing. It
+  is a long, thin plus-shaped plate with legs standing in those holes and a
+  cross-shaped tunnel on its underside. The tunnel width is the sum of the two
+  cut half-walls (one wall thickness) plus `2 × centreClearance`; the solid top
+  skin joins the four quadrants. Its total height is `lattice height + skin
+  thickness`. The tunnel clearance widens only the tunnel, never the outer
+  body; with 20 mm cells the key is about 16 × 16 mm with 3.7 mm arms.
+- The FRONT notch/arrow is moved away from the bottom dovetail so the outer band
+  stays solid where the joint is cut.
+- Every quadrant and the cross are extruded, inspected and moved to the print
+  origin separately. The STL download is per part; the preview pulls the four
+  quadrants apart and highlights the centre cross.
+- The parts are thin plates; the dovetails are a press/snap fit. The UI says so
+  and points at the two clearance controls.
+
+### 10.4 Project JSON
 
 `{ version, createdAt, plate, tape, material, conventions, iterations: [{ mesh,
 layers, pieces, params, note }] }` — import/export, localStorage autosave. Keeps
@@ -693,6 +802,8 @@ src/
     geometry/polygon.ts // polygon-clipping wrappers
     geometry/strokeFont.ts
     geometry/extrude.ts // polygon-with-holes -> triangles (earcut)
+    geometry/lattice.ts // full sheet with holes, frame, bridges, labels
+    geometry/composite.ts // four printable quadrants + dovetail joints
     geometry/stl.ts     // binary STL writer
     svg.ts
   state/                // zustand store, persistence

@@ -45,6 +45,28 @@ function fixturePlan(overrides: Partial<PlanOptions> = {}) {
   })
 }
 
+/** A perfectly level plate: the plan wants no tape at all. */
+function flatSurface(value = 0) {
+  const bounds = { minX: 10, maxX: 210, minY: 21, maxY: 211 }
+  const mesh: Mesh = {
+    name: 'flat',
+    version: 1,
+    xCount: 11,
+    yCount: 11,
+    points: Array.from({ length: 11 }, () => new Array<number>(11).fill(value)),
+    bounds,
+    algo: 'bicubic',
+    tension: 0.2,
+    meshXPps: 4,
+    meshYPps: 4,
+    source: 'block',
+    inferred: { counts: false, bounds: false, algo: false, tension: false, pps: false },
+    ignoredKeys: [],
+    notices: [],
+  }
+  return { surface: createSurface(mesh), bounds }
+}
+
 describe('quantile', () => {
   it('interpolates linearly, R-7 style', () => {
     expect(quantile([1, 2, 3, 4], 0)).toBe(1)
@@ -116,15 +138,58 @@ describe('plan — Appendix A golden', () => {
   it('adds the remaining correction on top of the measured layer state', () => {
     const base = Array.from({ length: 10 }, () => new Array<number>(10).fill(2))
     const withBase = fixturePlan({ baseLayers: base })
-    // A plan computed on an already-taped bed is never below the existing stack.
+    // Outside the deliberate t1 witness the plan never goes below the stack.
+    for (const cell of withBase.cells) {
+      if (!cell.unprobed && cell.reference === null) expect(cell.layers).toBeGreaterThanOrEqual(2)
+    }
+    // Every probed cell carries tape, so a witness had to be carved.
+    expect(withBase.referenceZone).not.toBeNull()
+    expect(withBase.referenceZone?.zero).not.toBeNull()
+    expect(withBase.referenceZone!.peel).toBeGreaterThan(0)
+    expect(withBase.warnings.map((warning) => warning.code)).toContain('plan.notice.referenceZonePeel')
+  })
+
+  it('keeps the old monotonic stack when the calibration zone is turned off', () => {
+    const base = Array.from({ length: 10 }, () => new Array<number>(10).fill(2))
+    const withBase = fixturePlan({ baseLayers: base, calibrationZone: false })
     for (const cell of withBase.cells) {
       if (!cell.unprobed) expect(cell.layers).toBeGreaterThanOrEqual(2)
     }
     expect(withBase.stats.totalLayers).toBeGreaterThanOrEqual(200)
+    expect(withBase.referenceZone).toBeNull()
   })
 
   it('is a pure function of its inputs', () => {
     expect(fixturePlan().layers).toEqual(fixturePlan().layers)
+  })
+})
+
+describe('plan — layer ceiling headroom', () => {
+  it('suggests raising the ceiling when the plan fills it', () => {
+    const result = fixturePlan({ maxLayers: 3 })
+    expect(result.stats.idealMax).toBe(3)
+    expect(result.stats.clamped).toBe(0)
+    expect(result.warnings).toContainEqual({
+      code: 'plan.notice.headroom',
+      params: { used: 3, max: 3, suggest: 6 },
+    })
+  })
+
+  it('reports the real need and a ceiling with reserve when cells are clamped', () => {
+    const result = fixturePlan({ maxLayers: 2 })
+    expect(result.stats.clamped).toBeGreaterThan(0)
+    expect(result.stats.idealMax).toBe(3)
+    const warning = result.warnings.find((item) => item.code === 'plan.notice.clamped')
+    expect(warning?.params).toEqual({ count: result.stats.clamped, max: 2, needed: 3, suggest: 6 })
+    expect(result.warnings.map((item) => item.code)).not.toContain('plan.notice.headroom')
+  })
+
+  it('stays quiet when there is enough reserve', () => {
+    const result = fixturePlan({ maxLayers: 6 })
+    expect(result.stats.idealMax).toBe(3)
+    const codes = result.warnings.map((item) => item.code)
+    expect(codes).not.toContain('plan.notice.headroom')
+    expect(codes).not.toContain('plan.notice.clamped')
   })
 })
 
@@ -205,6 +270,26 @@ describe('plan — extended margin', () => {
     expect(result.cells.find((cell) => cell.row === 0 && cell.col === 3)?.extrapolated).toBe(true)
   })
 
+  it('never puts the t1 witness in the extrapolated margin', () => {
+    const { surface, grid } = extendedSetup()
+    const base = Array.from({ length: grid.rows }, () => new Array<number>(grid.cols).fill(2))
+    const result = plan({
+      surface,
+      grid,
+      material,
+      referencePercentile: 0.85,
+      rounding: 'round',
+      baseLayers: base,
+    })
+    expect(result.referenceZone).not.toBeNull()
+    for (const cell of result.cells) {
+      if (!cell.reference) continue
+      expect(cell.unprobed).toBe(false)
+      expect(cell.extrapolated).toBe(false)
+      expect(cell.partial).toBe(false)
+    }
+  })
+
   it('mixes rows and columns so the cut width stays at the tape width', () => {
     const { surface, grid } = extendedSetup()
     const result = plan({ surface, grid, material, referencePercentile: 0.85, rounding: 'round' })
@@ -246,6 +331,129 @@ describe('plan — extended margin', () => {
         .every((piece) => piece.label.startsWith('J1') || piece.label.startsWith('J10')),
     ).toBe(true)
     expect(strips.pieces.length).toBe(32)
+  })
+})
+
+describe('plan — t1 reference zone', () => {
+  it('leaves a plan with 0 and taped cells alone', () => {
+    const result = fixturePlan()
+    expect(result.referenceZone).toBeNull()
+    expect(
+      result.warnings.some((warning) => warning.code.startsWith('plan.notice.reference')),
+    ).toBe(false)
+  })
+
+  it('does not invent tape on a level bare plate', () => {
+    const { surface, bounds } = flatSurface()
+    const grid = buildGrid({
+      plate: { w: 235, h: 235 },
+      meshBounds: bounds,
+      tapeWidth: 20,
+      meshXCount: 11,
+      meshYCount: 11,
+    })
+    const result = plan({ surface, grid, material, rounding: 'round' })
+    expect(result.stats.totalLayers).toBe(0)
+    expect(result.referenceZone).toBeNull()
+  })
+
+  it('does not bump a stable bed that already has an untaped cell', () => {
+    const { surface, bounds } = flatSurface()
+    const grid = buildGrid({
+      plate: { w: 235, h: 235 },
+      meshBounds: bounds,
+      tapeWidth: 20,
+      meshXCount: 11,
+      meshYCount: 11,
+    })
+    const base = Array.from({ length: grid.rows }, () => new Array<number>(grid.cols).fill(1))
+    base[5]![5] = 0
+    const result = plan({ surface, grid, material, rounding: 'round', baseLayers: base })
+    expect(result.stats.totalLayers).toBe(99)
+    expect(result.referenceZone).toBeNull()
+  })
+
+  it('reserves a witness on a fully taped bed when t1 is still unknown', () => {
+    const { surface, bounds } = flatSurface()
+    const grid = buildGrid({
+      plate: { w: 235, h: 235 },
+      meshBounds: bounds,
+      tapeWidth: 20,
+      meshXCount: 11,
+      meshYCount: 11,
+    })
+    const base = Array.from({ length: grid.rows }, () => new Array<number>(grid.cols).fill(2))
+    const result = plan({
+      surface,
+      grid,
+      material: { ...material, calibrated: false },
+      rounding: 'round',
+      baseLayers: base,
+    })
+    expect(result.stats.totalLayers).toBeLessThan(200)
+    expect(result.referenceZone).not.toBeNull()
+    expect(result.referenceZone!.peel).toBeGreaterThan(0)
+  })
+
+  it('reserves a witness on a level bed when t1 is still unknown', () => {
+    const { surface, bounds } = flatSurface()
+    const grid = buildGrid({
+      plate: { w: 235, h: 235 },
+      meshBounds: bounds,
+      tapeWidth: 20,
+      meshXCount: 11,
+      meshYCount: 11,
+    })
+    const base = Array.from({ length: grid.rows }, () => new Array<number>(grid.cols).fill(1))
+    const result = plan({
+      surface,
+      grid,
+      material: { ...material, calibrated: false },
+      rounding: 'floor',
+      baseLayers: base,
+    })
+    expect(result.referenceZone).not.toBeNull()
+    expect(result.referenceZone!.peel).toBeGreaterThan(0)
+  })
+
+  it('keeps the witness at 0 and 1 layer, never below zero', () => {
+    const base = Array.from({ length: 10 }, () => new Array<number>(10).fill(2))
+    const result = fixturePlan({ baseLayers: base })
+    expect(result.referenceZone).not.toBeNull()
+    for (const cell of result.cells) {
+      expect(cell.layers).toBeGreaterThanOrEqual(0)
+      if (cell.reference === 'zero') expect(cell.layers).toBe(0)
+      if (cell.reference === 'first') expect(cell.layers).toBe(1)
+    }
+  })
+
+  it('keeps every step around the witness within one layer', () => {
+    const base = Array.from({ length: 10 }, () => new Array<number>(10).fill(2))
+    const result = fixturePlan({ baseLayers: base })
+    const layers = result.layers
+    for (const cell of result.cells) {
+      if (!cell.reference) continue
+      for (const [dr, dc] of [
+        [-1, 0],
+        [1, 0],
+        [0, -1],
+        [0, 1],
+      ] as const) {
+        const value = layers[cell.row + dr]?.[cell.col + dc]
+        if (value === undefined) continue
+        expect(Math.abs(cell.layers - value), cell.id).toBeLessThanOrEqual(1)
+      }
+    }
+  })
+
+  it('shows the carving as peel in the physical diff', () => {
+    const base = Array.from({ length: 10 }, () => new Array<number>(10).fill(2))
+    const result = fixturePlan({ baseLayers: base })
+    const diff = diffAgainstPhysical(result, base)
+    // All peel comes from the witness; the rest of the bed still gets its
+    // remaining correction on top of the existing stack.
+    expect(diff.peel).toBe(result.referenceZone!.peel)
+    expect(diff.add).toBeGreaterThan(0)
   })
 })
 

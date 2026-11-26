@@ -3,8 +3,9 @@
 Turn a Klipper bed mesh into a Kapton-tape shim plan, a printable reference
 lattice (STL), and a closed calibration loop.
 
-Offline single-page app: TypeScript + Vite + React 19 + Ant Design 6, no backend,
-no CDN, relative asset paths (`base: './'`). `SPEC.md` is the contract; `PROMPT.md`
+Client-side single-page app: TypeScript + Vite + React 19 + Ant Design 6, no
+backend, no CDN, relative asset paths (`base: './'`). The header badge is the
+build version, injected from `package.json` at build time. `SPEC.md` is the contract; `PROMPT.md`
 is the kickoff brief.
 
 Live build: <https://glchernenko1.github.io/bedshim/> — every push to `main` runs
@@ -15,7 +16,8 @@ points at `src/main.tsx` and leaves the page blank.
 The sample meshes and the **Load example** picker exist only in `npm run dev`;
 the Pages build drops both, so visitors must paste their own mesh.
 
-The header switches between **Pro** and **Auto** and starts in Auto. Pro exposes
+The header shows the build version and switches between **Pro** and **Auto**,
+starting in Auto. Pro exposes
 the Calibration tab and the measured/t1/ts, rounding and σ controls. Auto hides
 those, keeps the plan inputs (including tape nominal, max layers and the
 reference percentile) and applies a conclusive material/σ fit from the last two
@@ -42,7 +44,7 @@ npm run cli -- parse fixtures/neptune4-mesh.cfg
 | P2 grid+plan | done — `buildGrid` 10×10, reference + quantization, golden plan, probe-count advice |
 | P3 forward | done — σ-blur prediction, residual map, achievable/delivered, mesh export |
 | P4 strips | done — row/column runs per level, batching, EN/RU cut list and print sheet |
-| P5 STL | done — manifold STL with frame + bridges; numbers 1–10 on both front/back rims and letters A–J on both sides; optional margin plan; SVG output removed by owner |
+| P5 STL | done — manifold STL with frame + bridges; numbers 1–10 on both front/back rims and letters A–J on both sides; optional margin plan; composite mode splits the sheet into four quadrants with outer dovetails plus a separate centre cross key; per-part STLs |
 | P6 calibration | first half done — measurements, t1/ts/σ fit, auto-round, Pro/Auto switch (Auto applies a conclusive fit without the calibration clicks); wizard and project JSON remain |
 
 Next: finish P6 — uniform-patch wizard, per-cell flags, peel and project
@@ -58,6 +60,9 @@ it produces is a message code translated through `src/i18n`.
 
 `fixtures/neptune4-mesh.{cfg,block,points}` — the same Elegoo Neptune 4 11×11 mesh
 in three real-world shapes (SPEC Appendix A).
+
+`fixtures/qidi-q1pro-mesh.cfg` — Qidi Q1 Pro 250 × 250 bed, 8 × 8 probes; the
+composite/preview fixtures also exercise the 20 × 20 mm plan grid.
 
 `fixtures/test-after-pass1.cfg` and `test-after-pass2.cfg` — synthetic
 "after taping" meshes with a known material (t1 = 0.025, ts = 0.040), for trying
